@@ -49,7 +49,7 @@ async function transformHtml(srcPath, distPath) {
           presets: ["@babel/preset-react"],
           filename: srcPath,
         });
-        return `<script type="text/javascript">${code}</script>`;
+        return `<script type="text/javascript">(function(){\n${code}\n})();</script>`;
       } catch (err) {
         console.error(
           `\n❌ Babel error in ${path.relative(__dirname, srcPath)}:`
