@@ -1,0 +1,235 @@
+<script type="text/babel">
+  const { useState } = React;
+  const AddEventModal = ({
+    user,
+    isOpen,
+    onClose,
+    onRefresh,
+    jobTypeDropdown,
+  }) => {
+    const [formData, setFormData] = useState({
+      eventName: "",
+      openingDate: "",
+      openingTime: "09:00",
+      closingDate: "",
+      closingTime: "18:00",
+      location: "",
+      type: "",
+      jobType: "",
+      userRole: user.role,
+    });
+    const [isLoading, setIsLoading] = useState(false);
+    if (!isOpen) return null;
+
+    const handleChange = (e) => {
+      const { name, value } = e.target;
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    };
+
+    // รัยค่าจาก Flatpickr
+    const handleDateChange = (field, value) => {
+      setFormData((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      setIsLoading(true);
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success === true) {
+            onClose();
+            onRefresh();
+            Swal.fire({
+              icon: "success",
+              title: res.message,
+            });
+          } else {
+            Swal.fire({
+              icon: "error",
+              title: res.message,
+            });
+          }
+          setIsLoading(false);
+        })
+        .createEvent(formData);
+    };
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+        {/* 1. Backdrop */}
+        <div
+          className="absolute inset-0 bg-black/60 transition-opacity"
+          onClick={onClose}
+        ></div>
+
+        {/* 2. Dialog */}
+        <div className="bg-white w-full max-w-md mx-auto rounded-lg shadow-lg z-50 overflow-y-auto animate-fade-in-up">
+          {/* Header */}
+          <div className="flex justify-between items-center p-4 border-b border-gray-200 rounded-t-lg">
+            <h2 className="text-lg font-medium">เพิ่มอีเวนต์ใหม่</h2>
+            <button
+              onClick={onClose}
+              className="btn btn-circle btn-ghost group"
+            >
+              <i className="fa-solid fa-xmark text-gray-500 group-hover:text-gray-700 duration-200"></i>
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="p-4 overflow-y-auto custom-scrollbar">
+            <form
+              id="eventForm"
+              onSubmit={handleSubmit}
+              className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+            >
+              {/* Event Name (Col Span 2) */}
+              <div className="sm:col-span-2 form-control">
+                <label className="label">
+                  <span className="label-text font-medium">
+                    ชื่องานอีเวนต์ <span className="text-red-500">*</span>
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  name="eventName"
+                  value={formData.eventName}
+                  onChange={handleChange}
+                  placeholder="เช่น JobFair 2026"
+                  className="input input-bordered w-full"
+                  required
+                />
+              </div>
+
+              {/* Opening Date */}
+              <FlatpickrInput
+                label="วันที่เริ่มงาน"
+                value={formData.openingDate}
+                onChange={(val) => handleDateChange("openingDate", val)}
+                icon={<i className="fa-regular fa-calendar"></i>}
+                placeholder="เลือกวันที่"
+                options={{ dateFormat: "Y-m-d", minDate: "today" }}
+              />
+
+              {/* Opening Time */}
+              <FlatpickrInput
+                label="เวลาเริ่ม"
+                value={formData.openingTime}
+                onChange={(val) => handleDateChange("openingTime", val)}
+                icon={<i className="fa-regular fa-clock"></i>}
+                placeholder="09:00"
+                options={{
+                  enableTime: true,
+                  noCalendar: true,
+                  dateFormat: "H:i",
+                  time_24hr: true,
+                }}
+              />
+
+              {/* Closing Date */}
+              <FlatpickrInput
+                label="วันที่สิ้นสุด"
+                value={formData.closingDate}
+                onChange={(val) => handleDateChange("closingDate", val)}
+                icon={<i className="fa-regular fa-calendar-check"></i>}
+                placeholder="เลือกวันที่"
+                options={{
+                  dateFormat: "Y-m-d",
+                  minDate: formData.openingDate || "today",
+                }}
+              />
+
+              {/* Closing Time */}
+              <FlatpickrInput
+                label="เวลาสิ้นสุด"
+                value={formData.closingTime}
+                onChange={(val) => handleDateChange("closingTime", val)}
+                icon={<i className="fa-regular fa-clock"></i>}
+                placeholder="18:00"
+                options={{
+                  enableTime: true,
+                  noCalendar: true,
+                  dateFormat: "H:i",
+                  time_24hr: true,
+                }}
+              />
+
+              {/* Type */}
+              <div className="sm:col-span-2 form-control">
+                <label className="label">
+                  <span className="label-text font-medium">ประเภทงาน</span>
+                </label>
+                <select
+                  name="type"
+                  value={formData.type}
+                  onChange={handleChange}
+                  className="select select-bordered w-full"
+                >
+                  <option value="">-- เลือกประเภท --</option>
+                  <option value="ONSITE">ONSITE</option>
+                  <option value="ONLINE">ONLINE</option>
+                </select>
+              </div>
+
+              {/* Location */}
+              {formData.type === "ONSITE" && (
+                <div className="sm:col-span-2 form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">
+                      สถานที่จัดงาน
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    name="location"
+                    value={formData.location}
+                    onChange={handleChange}
+                    placeholder="ระบุสถานที่"
+                    className="input input-bordered w-full"
+                  />
+                </div>
+              )}
+
+              {/* Job Type*/}
+              <div className="sm:col-span-2 form-control">
+                <label className="label">
+                  <span className="label-text font-medium">
+                    ประเภทของตำแหน่งงาน
+                  </span>
+                </label>
+                <select
+                  name="jobType"
+                  value={formData.jobType}
+                  onChange={handleChange}
+                  className="select select-bordered w-full"
+                >
+                  <option value="">-- เลือกประเภทของตำแหน่งงาน --</option>
+                  {jobTypeDropdown.map((item) => (
+                    <option key={item.name} value={item.name}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="sm:col-span-2">
+                <button
+                  type="submit"
+                  form="eventForm"
+                  disabled={isLoading}
+                  className="w-full btn bg-emerald-600 hover:bg-emerald-500 text-white shadow-md border-none px-6 rounded-lg duration-200 transition-all"
+                >
+                  {isLoading ? (
+                    <span className="loading loading-spinner"></span>
+                  ) : (
+                    "เพิ่มอีเวนต์"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  };
+</script>

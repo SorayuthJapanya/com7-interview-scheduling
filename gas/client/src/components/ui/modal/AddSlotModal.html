@@ -1,0 +1,451 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+
+  const AddSlotModal = ({
+    isOpen,
+    onClose,
+    onSuccess,
+    user,
+    queryDate,
+    eventId,
+  }) => {
+    // 1. State หลัก
+    const [formData, setFormData] = useState({
+      eventId,
+      userName: user?.name || "",
+      userRole: user?.role || "",
+      date: queryDate || "",
+      startSlotTime: "10:00",
+      endSlotTime: "16:00",
+      period: "60",
+    });
+
+    const [buConfig, setBuConfig] = useState([
+      { name: "เหนือ", capacity: 15 },
+      { name: "อีสาน", capacity: 15 },
+      { name: "กลาง", capacity: 15 },
+      { name: "ตะวันออก", capacity: 15 },
+      { name: "ตะวันตก", capacity: 15 },
+      { name: "ใต้", capacity: 15 },
+      { name: "กรุงเทพฯ (R.1)", capacity: 15 },
+      { name: "กรุงเทพฯ (R.2)", capacity: 15 },
+      { name: "กรุงเทพฯ (R.3)", capacity: 15 },
+      { name: "ปริมณทล", capacity: 15 },
+    ]);
+
+    const [newBu, setNewBu] = useState({ name: "", capacity: 1 });
+
+    const [generatedSlots, setGeneratedSlots] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleChange = (e) => {
+      const { name, value } = e.target;
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleDateChange = (field, value) => {
+      setFormData((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const handleGenerateSlots = () => {
+      if (buConfig.length === 0) {
+        Swal.fire(
+          "ไม่พบข้อมูล BU",
+          "กรุณาเพิ่มหน่วยงาน (BU) อย่างน้อย 1 รายการ",
+          "warning",
+        );
+        return;
+      }
+
+      const { startSlotTime, endSlotTime, period, date } = formData;
+      if (!startSlotTime || !endSlotTime || !period || !date) {
+        Swal.fire("ข้อมูลไม่ครบ", "กรุณากรอกข้อมูลเวลาให้ครบถ้วน", "warning");
+        return;
+      }
+
+      const getBaseDate = (timeStr) => {
+        const d = new Date();
+        const [hours, minutes] = timeStr.split(":").map(Number);
+        d.setHours(hours, minutes, 0, 0);
+        return d;
+      };
+
+      let current = getBaseDate(startSlotTime);
+      const end = getBaseDate(endSlotTime);
+      const periodNum = parseInt(period);
+      const newSlots = [];
+
+      while (current < end) {
+        const nextTime = new Date(current.getTime() + periodNum * 60000);
+        if (nextTime > end) break;
+
+        const formatTime = (d) =>
+          d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+
+        newSlots.push({
+          date: date,
+          startTime: formatTime(current),
+          endTime: formatTime(nextTime),
+          // Clone BU Config ไปใช้เป็นค่าเริ่มต้นของ Slot นี้
+          bu: JSON.parse(JSON.stringify(buConfig)),
+        });
+
+        current = nextTime;
+      }
+
+      setGeneratedSlots(newSlots);
+    };
+
+    const handleAddBu = (e) => {
+      e.preventDefault();
+      if (newBu.name.trim() === "") return;
+
+      // ป้องกันชื่อซ้ำ
+      if (buConfig.some((b) => b.name === newBu.name)) {
+        Swal.fire("ชื่อซ้ำ", "มีหน่วยงานนี้อยู่แล้ว", "warning");
+        return;
+      }
+
+      setBuConfig([
+        ...buConfig,
+        { ...newBu, capacity: parseInt(newBu.capacity) || 0 },
+      ]);
+      setNewBu({ name: "", capacity: 1 });
+    };
+
+    const handleRemoveBu = (index) => {
+      const newConfig = buConfig.filter((_, i) => i !== index);
+      setBuConfig(newConfig);
+    };
+
+    const handleSave = () => {
+      const formattedSlots = generatedSlots.map((slot) => {
+        const buList = slot.bu
+          .filter((a) => a.name && a.name.trim() !== "")
+          .map((a) => ({
+            name: a.name,
+            capacity: parseInt(a.capacity) || 0, // แปลง string เป็น int
+          }));
+
+        return {
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          bu: buList,
+        };
+      });
+
+      // 2. สร้าง Payload ก้อนใหญ่รวม Metadata
+      const payload = {
+        eventId: formData.eventId,
+        date: formData.date,
+        userName: formData.userName,
+        userRole: formData.userRole,
+        slots: formattedSlots,
+      };
+
+      // Validation: ตรวจสอบว่ามีข้อมูล Slot หรือไม่
+      if (payload.slots.length === 0) {
+        Swal.fire("ข้อมูลว่างเปล่า", "กรุณาสร้างสล็อตก่อนบันทึก", "warning");
+        return;
+      }
+
+      setIsLoading(true);
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success) {
+            Swal.fire({
+              icon: "success",
+              title: res.message,
+              timer: 2000,
+            }).then(() => {
+              onSuccess();
+              setIsLoading(false);
+            });
+          } else {
+            Swal.fire({
+              icon: "error",
+              title: res.message,
+              timer: 2000,
+            });
+            setIsLoading(false);
+          }
+          setIsLoading(false);
+        })
+        .withFailureHandler((err) => {
+          Swal.fire({
+            icon: "error",
+            title: "เกิดข้อผิดพลาด",
+            text: err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ",
+            timer: 2000,
+          });
+          setIsLoading(false);
+        })
+        .createSlotEvent(payload);
+    };
+
+    const handleTableCapacityChange = (slotIndex, buIndex, value) => {
+      const updatedSlots = [...generatedSlots];
+      updatedSlots[slotIndex].bu[buIndex].capacity = parseInt(value) || 0;
+      setGeneratedSlots(updatedSlots);
+    };
+
+    if (!isOpen) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+        <div
+          className="absolute inset-0 bg-black/60 transition-opacity"
+          onClick={onClose}
+        ></div>
+
+        <div className="bg-base-100 w-full max-w-4xl mx-auto rounded-xl shadow-2xl z-50 flex flex-col max-h-[90vh] animate-fade-in-up">
+          {/* Header */}
+          <div className="flex justify-between items-center p-5 border-b border-base-300">
+            <div>
+              <h2 className="text-xl font-medium">
+                สร้างสล็อตเวลา (Batch Generate)
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">
+                กำหนดช่วงเวลาเพื่อสร้าง Slot อัตโนมัติ
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="btn btn-sm btn-circle btn-ghost"
+            >
+              <i className="fa-solid fa-xmark text-lg"></i>
+            </button>
+          </div>
+
+          {/* Body (Scrollable) */}
+          <div className="p-6 overflow-y-auto custom-scrollbar">
+            <div className="grid grid-cols-1 gap-6 mb-6">
+              {/* Column 1: Config เวลา */}
+              <div className="lg:col-span-1 space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <FlatpickrInput
+                  label="วันที่สร้างสล็อต"
+                  value={formData.date}
+                  onChange={(val) => handleDateChange("date", val)}
+                  options={{ dateFormat: "Y-m-d", minDate: "today" }}
+                />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <FlatpickrInput
+                    label="เวลาเริ่ม"
+                    value={formData.startSlotTime}
+                    onChange={(val) => handleDateChange("startSlotTime", val)}
+                    options={{
+                      enableTime: true,
+                      noCalendar: true,
+                      dateFormat: "H:i",
+                      time_24hr: true,
+                    }}
+                  />
+
+                  <FlatpickrInput
+                    label="เวลาสิ้นสุด"
+                    value={formData.endSlotTime}
+                    onChange={(val) => handleDateChange("endSlotTime", val)}
+                    options={{
+                      enableTime: true,
+                      noCalendar: true,
+                      dateFormat: "H:i",
+                      time_24hr: true,
+                    }}
+                  />
+                </div>
+
+                <div className="w-full">
+                  <label className="text-gray-500 tex-sm">
+                    ช่วงเวลา (นาที)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.period}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        period: e.target.value,
+                      }))
+                    }
+                    className="input input-bordered w-full"
+                  />
+                </div>
+              </div>
+
+              {/* Column 2: Config BU (Dynamic List) */}
+              <div className="lg:col-span-2 space-y-4 bg-base-10 p-4 rounded-xl border border-base-300">
+                <h3 className="font-medium border-b border-base-300 pb-2 mb-2 flex justify-between">
+                  <span>จัดการหน่วยงาน (BUs)</span>
+                  <span className="text-xs font-normal text-gray-500">
+                    ค่า Capacity เริ่มต้น
+                  </span>
+                </h3>
+
+                {/* Input เพิ่ม BU */}
+                <div className="flex gap-2 items-end">
+                  <div className="form-control w-full">
+                    <label className="label py-0 mb-1">
+                      <span className="label-text text-xs">ชื่อหน่วยงาน</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="เช่น เหนือ"
+                      className="input input-sm input-bordered w-full bg-white"
+                      value={newBu.name}
+                      onChange={(e) =>
+                        setNewBu({ ...newBu, name: e.target.value })
+                      }
+                      onKeyDown={(e) => e.key === "Enter" && handleAddBu(e)}
+                    />
+                  </div>
+                  <div className="form-control w-24">
+                    <label className="label py-0 mb-1">
+                      <span className="label-text text-xs">โควต้า</span>
+                    </label>
+                    <input
+                      type="number"
+                      className="input input-sm input-bordered w-full text-center bg-white"
+                      value={newBu.capacity}
+                      onChange={(e) =>
+                        setNewBu({ ...newBu, capacity: e.target.value })
+                      }
+                      onKeyDown={(e) => e.key === "Enter" && handleAddBu(e)}
+                    />
+                  </div>
+                  <button
+                    onClick={handleAddBu}
+                    className="btn btn-sm bg-emerald-600 hover:bg-emerald-500 text-white border-none"
+                  >
+                    <i className="fa-solid fa-plus"></i> เพิ่ม
+                  </button>
+                </div>
+
+                {/* List รายชื่อ BU */}
+                <div className="flex flex-wrap gap-2 mt-3 min-h-[60px] content-start">
+                  {buConfig.length > 0 ? (
+                    buConfig.map((b, idx) => (
+                      <div
+                        key={idx}
+                        className="badge badge-lg gap-2 pl-3 pr-1 py-4 bg-base-100 shadow-sm border border-base300"
+                      >
+                        <span className="font-medium">{b.name}</span>
+                        <span className="badge badge-sm badge-neutral">
+                          {b.capacity}
+                        </span>
+                        <button
+                          onClick={() => handleRemoveBu(idx)}
+                          className="btn btn-ghost btn-xs btn-circle text-gray-400 hover:text-red-500"
+                        >
+                          <i className="fa-solid fa-times"></i>
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-400 text-sm italic w-full text-center py-2">
+                      ยังไม่มีหน่วยงาน (กรุณาเพิ่ม)
+                    </div>
+                  )}
+                </div>
+
+                <div className="divider my-0"></div>
+                <button
+                  onClick={handleGenerateSlots}
+                  className="btn w-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-md border-none"
+                >
+                  <i className="fa-solid fa-wand-magic-sparkles"></i>{" "}
+                  สร้างรายการสล็อต
+                </button>
+              </div>
+            </div>
+
+            {generatedSlots.length > 0 && (
+              <div className="animate-fade-in border-base-300 overflow-hidden space-y-3">
+                <p className="font-medium p-2 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-300 w-max">
+                  พรีวิวรายการ ({generatedSlots.length} ช่วงเวลา)
+                </p>
+                <div className="overflow-x-auto rounded-lg border border-base-300 shadow-sm">
+                  <table className="table table-pin-rows w-full bg-white">
+                    <thead className="text-gray-600 bg-gray-50">
+                      <tr>
+                        <th className="w-40 bg-gray-50">ช่วงเวลา</th>
+                        {/* Dynamic Column Headers */}
+                        {buConfig.map((bu, i) => (
+                          <th
+                            key={i}
+                            className="text-center min-w-[100px] bg-gray-50 text-nowrap"
+                          >
+                            {bu.name}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {generatedSlots.map((slot, slotIdx) => (
+                        <tr key={slotIdx} className="hover:bg-gray-50 border-b">
+                          <td className="font-medium text-emerald-700 text-nowrap text-sm">
+                            {slot.startTime} - {slot.endTime}
+                          </td>
+                          {/* Dynamic Capacity Inputs */}
+                          {slot.bu.map((b, buIdx) => (
+                            <td key={buIdx} className="p-2 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                value={b.capacity}
+                                onChange={(e) =>
+                                  handleTableCapacityChange(
+                                    slotIdx,
+                                    buIdx,
+                                    e.target.value,
+                                  )
+                                }
+                                className={`input input-bordered w-16 text-center ${
+                                  b.capacity > 0
+                                    ? "bg-emerald-50 border-emerald-300 font-bold text-emerald-700"
+                                    : "text-gray-300"
+                                }`}
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-5 border-t bg-base-100 border-base-300 flex justify-end gap-3 rounded-b-xl">
+            <button
+              onClick={onClose}
+              type="button"
+              disabled={isLoading}
+              className="btn btn-ghost text-gray-500"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              onClick={handleSave}
+              className="btn bg-emerald-600 hover:bg-emerald-500 text-white gap-2 shadow-md disabled:bg-gray-300"
+              disabled={generatedSlots.length === 0 || isLoading}
+            >
+              {isLoading ? (
+                <span className="loading loading-spinner loading-md"></span>
+              ) : (
+                <>
+                  <i className="fa-solid fa-save"></i> บันทึกข้อมูล (
+                  {generatedSlots.length})
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+</script>

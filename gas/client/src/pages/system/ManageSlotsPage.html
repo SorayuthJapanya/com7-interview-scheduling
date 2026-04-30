@@ -1,0 +1,301 @@
+<script type="text/babel">
+  const { useState, useEffect, useRef } = React;
+  const { useLocation } = ReactRouterDOM;
+
+  const ManageSlotsPage = ({ user }) => {
+    const location = useLocation();
+    const useQuery = new URLSearchParams(location.search);
+    const eventId = useQuery.get("eventId") || "";
+    const eventName = useQuery.get("eventName") || "";
+
+    const [date, setDate] = useState("");
+    const [slots, setSlots] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const skipNextFetch = useRef(false);
+
+    // Modal State
+    const [isAddModalOpen, setAddIsModalOpen] = useState(false);
+    const [isEditModalOpen, setEditIsModalOpen] = useState(false);
+
+    // --- 2. Data Fetching ---
+    const fetchEventAndSlots = () => {
+      setIsLoading(true);
+      const query = { eventId, dateQuery: date };
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success && res.data.slots && res.data.slots.length > 0) {
+            if (res.data.selectedDate && res.data.selectedDate !== date) {
+              skipNextFetch.current = true;
+              setDate(res.data.selectedDate);
+            }
+            setSlots(res.data.slots);
+          } else {
+            setSlots([]);
+          }
+          setIsLoading(false);
+        })
+        .withFailureHandler((err) => {
+          setIsLoading(false);
+          console.error(err);
+        })
+        .getEventAndSlots(query);
+    };
+
+    // --- 3. Handlers ---
+
+    const handleAddClick = () => {
+      setAddIsModalOpen(true);
+    };
+
+    const handleEditClick = (slot) => {
+      setEditIsModalOpen(slot);
+    };
+
+    // ฟังก์ชันลบ Slot
+    const handleDeleteClick = (slot) => {
+      Swal.fire({
+        title: "ยืนยันการลบ?",
+        text: `คุณต้องการลบ Slot เวลา ${slot.startTime} - ${slot.endTime} ใช่หรือไม่?`,
+        icon: "warning",
+        input: "textarea",
+        inputPlaceholder: "ระบุเหตุผลในการลบที่นี่...",
+        showCancelButton: true,
+        confirmButtonText: "ยืนยัน",
+        cancelButtonText: "ยกเลิก",
+        showLoaderOnConfirm: true,
+
+        inputValidator: (value) => {
+          if (!value) return "กรุณาระบุเหตุผลในการลบสล็อต";
+        },
+
+        preConfirm: (inputValue) => {
+          const action = inputValue;
+          try {
+            const payload = {
+              eventId: eventId,
+              date: date,
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+              userName: user.name,
+              userRole: user.role,
+              action,
+            };
+
+            return new Promise((resolve, reject) => {
+              google.script.run
+                .withSuccessHandler((res) => resolve(res))
+                .withFailureHandler((err) => reject(err))
+                .deleteSlotsByTimePeriod(payload);
+            });
+
+            if (!response.success) {
+              throw new Error(response.message || "ลบข้อมูลไม่สำเร็จ");
+            }
+          } catch (error) {
+            Swal.showValidationMessage(`เกิดข้อผิดพลาด: ${error.message}`);
+          }
+        },
+        allowOutsideClick: () => !Swal.isLoading(),
+      }).then((result) => {
+        if (result.value) {
+          fetchEventAndSlots();
+          Swal.fire({
+            icon: "success",
+            title: "ลบข้อมูลสำเร็จ",
+            text: result.value.message,
+            timer: 2000,
+            showConfirmButton: false,
+          });
+        }
+      });
+    };
+
+    const onModalSuccess = () => {
+      setAddIsModalOpen(false);
+      setEditIsModalOpen(null);
+      fetchEventAndSlots();
+    };
+
+    // Fetch เมื่อวันที่เปลี่ยน
+    useEffect(() => {
+      if (skipNextFetch.current) {
+        skipNextFetch.current = false;
+        return;
+      }
+      fetchEventAndSlots();
+    }, [date]);
+
+    return (
+      <div className="w-full max-w-7xl xl:max-w-[1440px] mx-auto pb-24 px-4">
+        {/* Header & Controls */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8 pt-6 animate-fade-in-up">
+          <div className="text-center md:text-left">
+            <SystemHeader
+              title={`จัดการสล็อตเวลา: ${eventName || "Loading..."}`}
+              subTitle="ตรวจสอบและแก้ไขข้อมูลสล็อตในระบบ"
+            />
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+            <div className="w-full sm:w-48 relative">
+              {/* Date Picker Component */}
+              <FlatpickrInput
+                value={date}
+                onChange={(val) => setDate(val)}
+                placeholder="เลือกวันที่"
+                icon={<i className="fa-regular fa-calendar"></i>}
+                options={{ dateFormat: "Y-m-d" }}
+              />
+            </div>
+            <button
+              onClick={handleAddClick}
+              className="btn bg-emerald-600 hover:bg-emerald-500 text-white w-full sm:w-auto duration-200 hover:scale-110 transition-all rounded-lg"
+            >
+              เพิ่มสล็อต
+            </button>
+          </div>
+        </div>
+
+        {/* Loading State */}
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center p-20 gap-4 animate-fade-in-up">
+            <span className="loading loading-spinner loading-md"></span>
+          </div>
+        ) : slots.length > 0 ? (
+          /* Table Section */
+          <div className="overflow-x-auto shadow-md rounded-lg border border-base-200 mt-4 animate-fade-in-up">
+            <table className="table table-zebra w-full">
+              <thead className="bg-base-200 text-gray-500 font-medium uppercase text-xs tracking-wider">
+                <tr>
+                  <th className="p-4 w-1/4">ช่วงเวลา</th>
+                  <th className="p-4 w-1/2">ภูมิภาค/สาขา</th>
+                  <th className="p-4 text-center">คงเหลือ</th>
+                  <th className="p-4 text-center w-32">ตัวดำเนินการ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {slots.map((slot, idx) => {
+                  const totalCap = slot.bu.reduce(
+                    (s, b) => s + (parseInt(b.capacity) || 0),
+                    0
+                  );
+
+                  return (
+                    <tr key={idx} className="hover:bg-base-200">
+                      {/* Time Column */}
+                      <td className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <i className="fa-regular fa-clock text-emerald-500"></i>
+                          {slot.startTime} - {slot.endTime}
+                        </div>
+                      </td>
+
+                      {/* BU Allocation Column */}
+                      <td>
+                        <div className="flex flex-wrap gap-2">
+                          {slot.bu.map((b, bIdx) => {
+                            const available = b.capacity > 0;
+
+                            return (
+                              <div
+                                key={bIdx}
+                                className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium
+                                    ${
+                                      available
+                                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                        : "border-gray-200 bg-gray-100 text-gray-400"
+                                    }`}
+                              >
+                                <span className="truncate max-w-[80px]">
+                                  {b.name}
+                                </span>
+
+                                <span
+                                  className={`min-w-[24px] text-center rounded-full px-2 py-0.5 text-sm font-bold
+                                        ${
+                                          available
+                                            ? "bg-emerald-600 text-white"
+                                            : "bg-gray-300 text-gray-600"
+                                        }`}
+                                >
+                                  {b.capacity}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </td>
+
+                      {/* Total Cap Column */}
+                      <td className="text-center">{totalCap}</td>
+
+                      {/* Actions Column */}
+                      <td className="text-center">
+                        <div className="join">
+                          <button
+                            onClick={() => handleEditClick(slot)}
+                            className="btn btn-sm btn-info join-item text-white"
+                          >
+                            <i className="fa-solid fa-pen-to-square"></i> แก้ไข
+                          </button>
+                          <button
+                            onClick={() => handleDeleteClick(slot)}
+                            className="btn btn-sm btn-error join-item text-white"
+                          >
+                            <i className="fa-solid fa-trash"></i> ลบ
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          /* Empty State */
+          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border-2 border-dashed border-gray-200">
+            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+              <i className="fa-regular fa-calendar-xmark text-3xl text-gray-300"></i>
+            </div>
+            <p className="text-gray-500 text-lg font-medium">
+              ไม่พบข้อมูล Slot ในวันที่ {date}
+            </p>
+            <p className="text-gray-400 text-sm mb-6">
+              เริ่มสร้าง Slot เวลาสำหรับอีเวนต์นี้ได้เลย
+            </p>
+            <button
+              onClick={handleAddClick}
+              className="btn btn-outline text-emerald-600 hover:bg-emerald-50 hover:border-emerald-600"
+            >
+              <i className="fa-solid fa-plus"></i> สร้าง Slot แรก
+            </button>
+          </div>
+        )}
+
+        {isAddModalOpen && (
+          <AddSlotModal
+            isOpen={isAddModalOpen}
+            onClose={() => setAddIsModalOpen(false)}
+            onSuccess={onModalSuccess}
+            eventId={eventId}
+            queryDate={date}
+            user={user}
+          />
+        )}
+
+        {isEditModalOpen && (
+          <EditSlotModal
+            isOpen={isEditModalOpen}
+            onClose={onModalSuccess}
+            eventId={eventId}
+            queryDate={date}
+            user={user}
+            slotData={isEditModalOpen}
+          />
+        )}
+      </div>
+    );
+  };
+</script>

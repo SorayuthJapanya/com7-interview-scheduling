@@ -1,0 +1,10 @@
+<script type="text/babel">
+  const HomePage = ({user, onClickLogin}) => {
+    return (
+      <div className="w-full h-min-screen">
+        <HeroSection user={user} onClickLogin={onClickLogin} />
+        <EventSection user={user}/>
+      </div>
+    );
+  };
+</script>

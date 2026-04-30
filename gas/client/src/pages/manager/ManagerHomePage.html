@@ -1,0 +1,246 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+  const ManagerHomePage = ({ user }) => {
+    const [search, setSearch] = useState("");
+    const [eventName, setEventName] = useState("");
+    const [province, setProvince] = useState("");
+    const [page, setPage] = useState(1);
+    const limit = 15;
+
+    const [isLoading, setIsLoading] = useState(false);
+    const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+
+    const [candidateData, setCandidateData] = useState([]);
+    const [paginationData, setPaginationData] = useState({});
+    const [events, setEvents] = useState([]);
+    const [provinceOptions, setProvinceOptions] = useState([]);
+
+    const [isClickDeleted, setIsClickDeleted] = useState(false);
+    const [isSeeMoreDetail, setIsSeeMoreDetail] = useState(null);
+
+    const [selectedDatas, setSelectedDatas] = useState([]);
+
+    const fetchInterviewData = () => {
+      setIsLoading(true);
+      const userRole = user.role;
+
+      const query = {
+        search,
+        eventName,
+        province,
+        permission: user.permissionType || "",
+        page,
+        limit,
+      };
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success === true) {
+            setCandidateData(res.data);
+            setPaginationData(res.pagination);
+          }
+          setIsLoading(false);
+        })
+        .withFailureHandler((err) => {
+          if (err) {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: err.message,
+              timer: 2000,
+            });
+          }
+          setIsLoading(false);
+        })
+        .getAllInterviews(query, userRole);
+    };
+
+    const fetchEventName = () => {
+      google.script.run
+        .withSuccessHandler((res) => {
+          setEvents(res);
+        })
+        .getEventNameDropdown();
+    };
+
+    const fetchThaiLocation = async () => {
+      setIsLoadingLocation(true);
+
+      try {
+        const response = await fetch(
+          "https://raw.githubusercontent.com/kongvut/thai-province-data/refs/heads/master/api/latest/province.json",
+        );
+        const data = await response.json();
+
+        const sortedData = data.sort((a, b) =>
+          a.name_th.localeCompare(b.name_th),
+        );
+
+        const provinces = sortedData.map((item) => item.name_th);
+        setProvinceOptions(provinces);
+      } catch (error) {
+        console.error("Failed to fetch location data:", error);
+      } finally {
+        setIsLoadingLocation(false);
+      }
+    };
+
+    const handleClear = () => {
+      setSearch("");
+      setEventName("");
+      setProvince("");
+      setPage(1);
+    };
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      setPage(1);
+      fetchInterviewData();
+    };
+
+    useEffect(() => {
+      fetchInterviewData();
+    }, [page]);
+
+    useEffect(() => {
+      fetchEventName();
+      fetchThaiLocation();
+    }, []);
+
+    return (
+      <div className="w-full padding-container pb-24 px-4 sm:px-6">
+        <div className="flex flex-col md:flex-row justify-between items-center my-10 gap-4 animate-fade-in-up">
+          <div className="text-center sm:text-start">
+            <SystemHeader
+              title="ฐานข้อมูลผู้สมัคร"
+              subTitle="จัดการและตรวจสอบรายชื่อผู้สมัครในระบบ"
+            />
+          </div>
+
+          {paginationData && paginationData.totalItems > 0 && (
+            <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg text-sm font-medium border border-emerald-100">
+              พบข้อมูลทั้งหมด{" "}
+              <span className="font-bold text-emerald-800">
+                {paginationData.totalItems}
+              </span>{" "}
+              รายการ
+            </div>
+          )}
+        </div>
+
+        <form
+          onSubmit={handleSubmit}
+          className="bg-base-100 p-5 rounded-2xl shadow-sm border border-base-300 mb-8 animate-fade-in-up"
+        >
+          <div className="flex flex-col lg:flex-row gap-4 items-end">
+            <div className="w-full">
+              <label className="text-xs font-semibold text-gray-500 mb-1.5 ml-1 block">
+                คำค้นหา (ชื่อ, ข้อมูลทั่วไป)
+              </label>
+              <InputField
+                name="search"
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="🔍 ค้นหาชื่อผู้สมัคร..."
+                className="w-full"
+              />
+            </div>
+
+            {/* 2. Filters Group (Event & Province) */}
+            <div className="w-full">
+              <div className="w-full">
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 ml-1 block">
+                  จังหวัด
+                </label>
+                <SearchableSelect
+                  name="provice"
+                  value={province || ""}
+                  onChange={(e) => setProvince(e.target.value)}
+                  options={provinceOptions}
+                  placeholder="ทุกจังหวัด"
+                />
+              </div>
+            </div>
+
+            {/* 3. Action Buttons (Search & Clear) */}
+            <div className="w-full lg:w-auto flex gap-2 pt-2 lg:pt-0 mr-4">
+              {/* ปุ่ม Clear (Secondary Action) */}
+              <button
+                type="button"
+                onClick={handleClear}
+                className="btn btn-ghost text-gray-500 hover:bg-slate-100 border-slate-200"
+                disabled={isLoading}
+                title="ล้างค่าการค้นหา"
+              >
+                ล้างค่า
+              </button>
+
+              {/* ปุ่ม Search (Primary Action) - แสดงผลตลอดเวลา */}
+              <button
+                type="submit"
+                className="btn bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-md hover:shadow-lg flex-1 lg:flex-none px-6 gap-2"
+                disabled={isLoading}
+              >
+                ค้นหา
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {/* --- ส่วนแสดงผลข้อมูล (Content) --- */}
+        {isLoading ? (
+          <div className="w-full py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
+            <span className="loading loading-dots loading-lg text-emerald-500"></span>
+            <p className="text-sm font-light">กำลังโหลดข้อมูล...</p>
+          </div>
+        ) : (
+          <div className="animate-fade-in-up">
+            {candidateData.length > 0 ? (
+              <>
+                <CandidateTable
+                  candidates={candidateData}
+                  isClickDeleted={isClickDeleted}
+                  setIsSeeMoreDetail={setIsSeeMoreDetail}
+                  selectedDatas={selectedDatas}
+                  setSelectedDatas={setSelectedDatas}
+                  user={user}
+                />
+
+                <div className="mt-6 flex justify-center">
+                  <PagePagination
+                    currentPage={paginationData.currentPage || 1}
+                    totalPages={paginationData.totalPages || 1}
+                    onPageChange={(p) => {
+                      setPage(p);
+                      window.scrollTo(0, 0);
+                    }}
+                  />
+                </div>
+              </>
+            ) : (
+              // Empty State ที่สวยงามขึ้น
+              <div className="w-full py-16 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                <div className="text-4xl mb-2">📄</div>
+                <p className="text-gray-500 font-medium">ไม่พบข้อมูลผู้สมัคร</p>
+                <p className="text-slate-400 text-sm mt-1">
+                  ลองปรับเปลี่ยนคำค้นหาหรือตัวกรองใหม่อีกครั้ง
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isSeeMoreDetail && (
+          <InterviewDetailModal
+            interview={isSeeMoreDetail}
+            isOpen={!!isSeeMoreDetail}
+            onClose={() => setIsSeeMoreDetail(null)}
+            user={user}
+            onRefresh={fetchInterviewData}
+          />
+        )}
+      </div>
+    );
+  };
+</script>

@@ -1,0 +1,388 @@
+<script type="text/babel">
+  const { useState } = React;
+  const CandidateAuthForm = ({
+    onClose,
+    onLoginSuccess,
+    isLoading,
+    setIsLoading,
+    onClickForgotPassword,
+  }) => {
+    const [formData, setFormData] = useState({
+      title: "นาย",
+      name: "",
+      email: "",
+      password: "",
+      phone: "",
+    });
+    const [profile, setProfile] = useState(null);
+    const [isLogin, setIsLogin] = useState(true);
+    const [showPassword, setShowPassword] = useState(false);
+
+    const handleChange = (e) => {
+      const { name, value } = e.target;
+      setFormData({
+        ...formData,
+        [name]: value,
+      });
+    };
+
+    const readFileAsBase64 = (file) => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+      });
+    };
+
+    const handleLoginSubmit = (e) => {
+      e.preventDefault();
+      setIsLoading(true);
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success === true) {
+            onLoginSuccess(res.data);
+            onClose();
+            Swal.fire({
+              icon: "success",
+              title: res.message,
+              timer: 2000,
+            });
+          } else {
+            Swal.fire({
+              icon: "error",
+              title: res.message,
+              timer: 2000,
+            });
+          }
+          setIsLoading(false);
+        })
+        .withFailureHandler((err) => {
+          Swal.fire({
+            icon: "error",
+            title: "เกิดข้อผิดพลาด",
+            text: err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ",
+            timer: 2000,
+          });
+          setIsLoading(false);
+        })
+        .loginUser(formData);
+    };
+
+    const handleRegisterSubmit = async (e) => {
+      e.preventDefault();
+
+      if (!profile) {
+        Swal.fire({ icon: "warning", title: "กรุณาแบบรูปโปรไฟล์" });
+        return;
+      }
+
+      const max_size = 5 * 1024 * 1024; // 5MB
+
+      if (profile && profile.size > max_size) {
+        Swal.fire({
+          icon: "warning",
+          title: "ขนาดไฟล์ไม่เกิน 5MB",
+        });
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        const base64Data = await readFileAsBase64(profile);
+
+        const payload = {
+          ...formData,
+          fullname: `${formData.title} ${formData.name}`,
+          profile: {
+            base64Data,
+            fileName: profile.name,
+            mimeType: profile.type,
+          },
+        };
+
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (res.success === true) {
+              onLoginSuccess(res.data);
+              onClose();
+              Swal.fire({
+                icon: "success",
+                title: res.message,
+                timer: 2000,
+              });
+            } else {
+              Swal.fire({
+                icon: "error",
+                title: res.message,
+                timer: 2000,
+              });
+            }
+            setIsLoading(false);
+          })
+          .withFailureHandler((err) => {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: err.message || "เกิดข้อผิดพลาดในการสมัครสมาชิก",
+              timer: 2000,
+            });
+            setIsLoading(false);
+          })
+          .registerUser(payload);
+      } catch (error) {
+        Swal.fire({
+          icon: "error",
+          title: error.message || "ลงชื่อเข้าใช้ล้มเหลว",
+        });
+        setIsLoading(false);
+      }
+    };
+
+    return (
+      <div className="w-full space-y-5 animate-fade-in">
+        <div className="flex items-center gap-2">
+          <img
+            src="https://drive.google.com/thumbnail?id=1INCNKnZiGOhVipsjSy62m3EamgKdoDpn"
+            alt="user-logo"
+            className="size-7 sm:size-8 rounded-full"
+          />
+          <p className="font-semibold text-emerald-700 text-lg sm:text-xl">
+            สำหรับผู้สมัคร
+          </p>
+        </div>
+
+        {/* Form*/}
+        <form
+          onSubmit={isLogin ? handleLoginSubmit : handleRegisterSubmit}
+          className="w-full text-sm space-y-3"
+        >
+          {/* Fullname */}
+          {!isLogin && (
+            <div className="flex flex-col gap-1">
+              <label htmlFor="name" className="flex gap-2">
+                ชื่อ-นามสกุล{" "}
+                <span className="text-xs sm:text-sm text-red-500">*</span>
+              </label>
+
+              <div className="flex flex-row gap-2">
+                <select
+                  className="select select-bordered w-24 focus:outline-none"
+                  name="title"
+                  id="title"
+                  onChange={handleChange}
+                  value={formData.title}
+                  required
+                >
+                  <option value="นาย">นาย</option>
+                  <option value="นาง">นาง</option>
+                  <option value="นางสาว">นางสาว</option>
+                </select>
+
+                <input
+                  type="text"
+                  className="w-full input border rounded-md px-3 focus-within:border-blue-500 focus:outline-none"
+                  id="name"
+                  name="name"
+                  onChange={handleChange}
+                  placeholder="กรอกชื่อ-นามสกุล"
+                  required
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Email */}
+          <div className="flex flex-col gap-1">
+            <label htmlFor="email" className="flex gap-2">
+              อีเมล{" "}
+              {!isLogin ? (
+                <span className="text-xs sm:text-sm text-red-500">
+                  * ขอความกรุณาใช้อีเมลปัจจุบัน
+                  เนื่องจากท่านจะไม่สามารถแก้ไขอีเมลได้ (ตัวพิมพ์เล็กเท่านั้น)
+                </span>
+              ) : (
+                <span className="text-xs sm:text-sm text-red-500">*</span>
+              )}
+            </label>
+            <input
+              type="email"
+              className="w-full input focus-within:border-none"
+              id="email"
+              name="email"
+              onChange={handleChange}
+              placeholder="อีเมล"
+              required
+            />
+          </div>
+
+          {/* Password */}
+          <div className="relative flex flex-col gap-1">
+            <div className="flex justify-between items-end">
+              <label htmlFor="password" className="text-sm">
+                รหัสผ่าน{" "}
+                {!isLogin && (
+                  <span className="text-xs text-red-500 font-normal">
+                    * (ความยาวอย่างน้อย 6 ตัว)
+                  </span>
+                )}
+              </label>
+
+              {isLogin && (
+                <button
+                  type="button"
+                  onClick={() => onClickForgotPassword("candidate")}
+                  className="text-xs text-red-600 hover:underline focus:outline-none"
+                >
+                  ลืมรหัสผ่าน?
+                </button>
+              )}
+            </div>
+            <input
+              type={showPassword ? "text" : "password"}
+              className="w-full relative input focus-within:border-none"
+              id="password"
+              name="password"
+              onChange={handleChange}
+              placeholder="รหัสผ่าน"
+              required
+            />
+
+            <span
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute top-7 right-3 size-8 rounded-full hover:bg-base-300 cursor-pointer duration-200 active:scale-95 transform transition-all text-gray-600 flex items-center justify-center"
+            >
+              {showPassword ? (
+                <i className="fa-solid fa-eye-slash"></i>
+              ) : (
+                <i className="fa-solid fa-eye"></i>
+              )}
+            </span>
+          </div>
+
+          {/* Phone */}
+          {!isLogin && (
+            <div className="flex flex-col gap-1">
+              <label htmlFor="phone" className="flex gap-2">
+                เบอร์โทรศัพท์{" "}
+                <span className="text-xs sm:text-sm text-red-500">
+                  * ตัวอย่าง: 0812345678
+                </span>
+              </label>
+              <input
+                type="text"
+                className="w-full input focus-within:border-none"
+                id="phone"
+                name="phone"
+                onChange={handleChange}
+                placeholder="เบอร์โทรศัพท์"
+                required
+              />
+            </div>
+          )}
+
+          {!isLogin && (
+            <div className="flex flex-col gap-3">
+              <label
+                htmlFor="profile"
+                className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2"
+              >
+                รูปโปรไฟล์
+                <span className="text-xs sm:text-sm text-red-500 ">
+                  * ขอความกรุณาแนบรูปหน้าตรงเท่านั้น และขนาดไม่เกิน 5MB
+                </span>
+              </label>
+
+              {/* File Input */}
+              <input
+                type="file"
+                accept="image/*"
+                className="file-input file-input-bordered w-full focus:outline-none"
+                id="profile"
+                name="profile"
+                onChange={(e) =>
+                  e.target.files[0] && setProfile(e.target.files[0])
+                }
+                required
+              />
+
+              {/* ส่วนแสดงตัวอย่างรูป (Example Images) */}
+              <div className="mt-2 p-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                <p className="text-sm text-gray-500 mb-3 font-medium">
+                  คำแนะนำการแบนรูปโปรไฟล์:
+                </p>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Case: ถูกต้อง (Correct) */}
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="relative w-full aspect-[3/4] max-w-[120px] rounded-lg overflow-hidden border-2 border-green-500 shadow-sm">
+                      <img
+                        src="https://i.pinimg.com/736x/b1/19/23/b11923d38780fee29cb9d5c24ea1c345.jpg"
+                        alt="ตัวอย่างที่ถูกต้อง"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute bottom-0 inset-x-0 bg-green-500 text-white text-[10px] sm:text-xs text-center py-0.5">
+                        ✅ ถูกต้อง
+                      </div>
+                    </div>
+                    <span className="text-xs text-center text-gray-600">
+                      หน้าตรง เห็นชัดเจน
+                    </span>
+                  </div>
+
+                  {/* Case: ไม่ถูกต้อง (Incorrect) */}
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="relative w-full aspect-[3/4] max-w-[120px] rounded-lg overflow-hidden border-2 border-red-500 shadow-sm opacity-80">
+                      <img
+                        src="https://f.ptcdn.info/516/032/000/1434522792-2-o.jpg"
+                        alt="ตัวอย่างที่ไม่ถูกต้อง"
+                        className="w-full h-full object-cover grayscale"
+                      />
+                      <div className="absolute bottom-0 inset-x-0 bg-red-500 text-white text-[10px] sm:text-xs text-center py-0.5">
+                        ❌ ไม่ถูกต้อง
+                      </div>
+                    </div>
+                    <span className="text-xs text-center text-gray-600">
+                      ไม่ใช่รูปตัวเอง/สวมแว่น/หมวก/หันข้าง
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 text-white cursor-pointer rounded-box duration-200 mt-1 text-base"
+          >
+            {isLoading ? <Loader /> : isLogin ? "เข้าสู่ระบบ" : "สมัครสมาชิก"}
+          </button>
+
+          {isLogin ? (
+            <p className="text-center">
+              ยังไม่มีบัญชีใช่ไหม?{" "}
+              <span
+                onClick={() => setIsLogin(false)}
+                className="text-emerald-600 underline cursor-pointer"
+              >
+                สมัครสมาชิก
+              </span>
+            </p>
+          ) : (
+            <p className="text-center">
+              มีบัญชีอยู่แล้ว?{" "}
+              <span
+                onClick={() => setIsLogin(true)}
+                className="text-emerald-600 underline cursor-pointer"
+              >
+                เข้าสู่ระบบ
+              </span>
+            </p>
+          )}
+        </form>
+      </div>
+    );
+  };
+</script>

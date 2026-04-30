@@ -1,0 +1,51 @@
+<script type="text/babel">
+  const { useState } = React;
+  const HeroSection = ({ user, onClickLogin }) => {
+    const [eventStucture, setEventStucture] = useState([]);
+    const [optionsLoading, setOptionsLoading] = useState(false);
+
+    const fetchFullStucture = () => {
+      setOptionsLoading(true);
+      google.script.run
+        .withSuccessHandler((res) => {
+          setEventStucture(res.data);
+          setOptionsLoading(false);
+        })
+        .withFailureHandler((error) => {
+          console.error(error);
+          setEventStucture([]);
+          setOptionsLoading(false);
+        })
+        .getFullEventStructure();
+    };
+
+    useEffect(() => {
+      fetchFullStucture();
+    }, []);
+
+    return (
+      <div className="py-20 sm:py-32 bg-hero bg-cover padding-container bg-center bg-no-repeat">
+        <div className="w-full flex flex-col items-center justify-center gap-4 sm:gap-6 text-center animate-fade-in-up">
+          <div className="flex flex-col gap-3 sm:gap-4 w-full text-center text-white mb-2">
+            <h1 className="text-3xl md:text-[40px] font-semibold">
+              Interview Scheduling System
+            </h1>
+            <h2 className="text-lg md:text-2xl text-white text-nowrap">
+              ระบบจองตารางสัมภาษณ์
+            </h2>
+          </div>
+
+          <div className="w-full xl:px-20">
+            {/* Hero Button */}
+            <EventBookingForm
+              events={eventStucture}
+              isLoading={optionsLoading}
+              user={user}
+              onClickLogin={onClickLogin}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  };
+</script>

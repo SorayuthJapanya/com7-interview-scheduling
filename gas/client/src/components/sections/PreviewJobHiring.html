@@ -1,0 +1,139 @@
+<script type="text/babel">
+  const { useState } = React;
+  const PreviewJobHiring = ({ images, onRefresh }) => {
+    const [isDeleting, setIsDeleting] = useState(null);
+
+    const formatDate = (dateString) => {
+      if (!dateString) return "-";
+      const date = new Date(dateString);
+      if (date.getFullYear() > 2400) date.setFullYear(date.getFullYear() - 543);
+      return date.toLocaleDateString("th-TH", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    };
+
+    const getDisplayUrl = (driveUrl) => {
+      if (!driveUrl) return "";
+      if (driveUrl.includes("drive.google.com/uc?export=view")) {
+        const idMatch = driveUrl.match(/id=([^&]+)/);
+        if (idMatch && idMatch[1]) {
+          return `https://drive.google.com/thumbnail?sz=w1000&id=${idMatch[1]}`;
+        }
+      }
+      return driveUrl;
+    };
+
+    const openInNewTab = (url) => {
+      window.open(url, "_blank", "noopener,noreferrer");
+    };
+
+    const handleDelete = async (url) => {
+      const result = await Swal.fire({
+        icon: "question",
+        title: "คุณต้องการลบรูปภาพนี้หรือไม่?",
+        showCancelButton: true,
+        confirmButtonText: "ยืนยัน",
+        cancelButtonText: "ยกเลิก",
+      });
+
+      if (result.isConfirmed) {
+        setIsDeleting(url);
+
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (res.success) {
+              setIsDeleting(null);
+              Swal.fire({
+                icon: "success",
+                title: res.message,
+                timer: 2000,
+              });
+              if (onRefresh) onRefresh();
+            } else {
+              setIsDeleting(null);
+              Swal.fire({
+                icon: "error",
+                title: res.message,
+                timer: 2000,
+              });
+            }
+          })
+          .withFailureHandler((err) => {
+            setIsDeleting(null);
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: err.message,
+              timer: 2000,
+            });
+          })
+          .deleteJobHiringPoster(url);
+      }
+    };
+
+    return (
+      <div className="w-full my-4">
+        <p className="text-sm font-medium text-gray-500 mb-4 flex items-center gap-2">
+          รูปภาพตำแหน่งงานว่าง ({images.length}) รูป
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 px-1">
+          {images.map((item, index) => (
+            <div
+              key={index}
+              onClick={() => openInNewTab(item.Url)}
+              className="group relative bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100"
+            >
+              {/* Image Container */}
+              <div className="w-full overflow-hidden aspect-[7/10] bg-gray-100 relative">
+                <img
+                  src={getDisplayUrl(item.Url)}
+                  alt={item.File_Name}
+                  className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+                  loading="lazy"
+                />
+
+                {isDeleting && isDeleting === item.Url ? (
+                  <div className="absolute inset-0 bg-black/80 transition-opacity flex items-center justify-center">
+                    <span className="loading loading-spinner loading-md text-white"></span>
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-4">
+                    {/* Top Action: Delete Button */}
+                    <div className="flex justify-end transform transition-transform duration-300">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(item.Url);
+                        }}
+                        disabled={isDeleting}
+                        className="bg-white/90 text-red-500 size-8 flex items-center justify-center rounded-full shadow-sm cursor-pointer hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0duration-200"
+                      >
+                        <i className="fa-regular fa-trash-can"></i>
+                      </button>
+                    </div>
+
+                    <div className="transform translate-y-[10px] group-hover:translate-y-0 transition-transform duration-300">
+                      <p
+                        className="text-white font-medium truncate text-sm"
+                        title={item.File_Name}
+                      >
+                        {item.File_Name}
+                      </p>
+                      <div className="flex items-center gap-1 text-gray-300 text-sm mt-1">
+                        <i className="fa-regular fa-clock"></i>
+                        <span>{formatDate(item.TimeStamp)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+</script>

@@ -1,0 +1,435 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+
+  const AddLinkInterviewPage = ({ user }) => {
+    const [loading, setLoading] = useState(false);
+    const [optionLoading, setOptionsLoading] = useState(false);
+    const [rawEventBuData, setRawEventBuData] = useState([]);
+    const [eventOptions, setEventOptions] = useState([]);
+    const [buOptions, setBuOptions] = useState([]);
+    const [page, setPage] = useState(1);
+    const limit = 15;
+
+    const [candidateData, setCandidateData] = useState([]);
+    const [paginationData, setPaginationData] = useState({});
+
+    const [isClickSelected, setIsClickSelected] = useState(false);
+    const [isSeeMoreDetail, setIsSeeMoreDetail] = useState(null);
+
+    const [selectedDatas, setSelectedDatas] = useState([]);
+
+    const [filters, setFilters] = useState({
+      eventName: "",
+      buName: "",
+      interviewLink: "",
+    });
+
+    const handleInputChange = (e) => {
+      const { name, value } = e.target;
+      setFilters((prev) => {
+        const newData = { ...prev, [name]: value };
+        if (name === "eventName") {
+          newData.buName = ""; // Reset BU เมื่อเปลี่ยน Event
+        }
+        return newData;
+      });
+    };
+
+    const fetchEventAndBu = () => {
+      setOptionsLoading(true);
+      google.script.run
+        .withSuccessHandler((response) => {
+          setRawEventBuData(response);
+          const eventNames = response.map((event) => event.eventName);
+          setEventOptions(eventNames);
+          setOptionsLoading(false);
+        })
+        .getEventAndBuStructure();
+    };
+
+    useEffect(() => {
+      fetchEventAndBu();
+    }, []);
+
+    useEffect(() => {
+      if (filters.eventName && rawEventBuData.length > 0) {
+        const selectedEventObj = rawEventBuData.find(
+          (p) => p.eventName === filters.eventName,
+        );
+
+        if (selectedEventObj && selectedEventObj.bu) {
+          const sortedBu = [...selectedEventObj.bu].sort((a, b) =>
+            a.buName.localeCompare(b.buName),
+          );
+          const buNames = sortedBu.map((d) => d.buName);
+          setBuOptions(buNames);
+        } else {
+          setBuOptions([]);
+        }
+      } else {
+        setBuOptions([]);
+      }
+    }, [filters.eventName, rawEventBuData]);
+
+    const handleClear = () => {
+      setFilters({
+        eventName: "",
+        buName: "",
+        interviewLink: "",
+      });
+      setPage(1);
+    };
+
+    const fetchCandidateWithOutInterviewLink = (mode = "next") => {
+      setLoading(true);
+
+      let query;
+      if (mode === "reset") {
+        query = {
+          eventName: "",
+          buName: "",
+          page: 1,
+          limit,
+        };
+      } else {
+        query = {
+          eventName: filters.eventName,
+          buName: filters.buName,
+          page,
+          limit,
+        };
+      }
+
+      console.log("query: ", query);
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success) {
+            setCandidateData(res.data || []);
+            setPaginationData(res.pagination);
+            setLoading(false);
+          } else {
+            setCandidateData([]);
+            setPaginationData({});
+            setLoading(false);
+          }
+        })
+        .withFailureHandler((err) => {
+          if (err) {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: err.message,
+              timer: 2000,
+            });
+          }
+          setLoading(false);
+        })
+        .getAllInterviewsWithoutInterviewLink(query);
+    };
+
+    useEffect(() => {
+      if (filters.eventName && filters.buName !== "") {
+        fetchCandidateWithOutInterviewLink();
+      }
+    }, [filters.eventName, filters.buName, page, limit]);
+
+    const handleSubmit = (mode) => {
+      if (!filters.interviewLink) {
+        Swal.fire({
+          icon: "warning",
+          title: "กรุณาระบุลิงก์",
+          text: "ช่องลิงก์สัมภาษณ์ห้ามว่าง",
+        });
+        return;
+      }
+
+      // Prepare data
+      let targetIds = [];
+      let titleText = "";
+      let bodyText = "";
+
+      if (mode === "SELECTED") {
+        if (selectedDatas.length === 0) {
+          Swal.fire({
+            icon: "warning",
+            title: "ยังไม่ได้เลือกผู้สมัคร",
+            text: "กรุณาติ๊กเลือกผู้สมัครที่ต้องการก่อน",
+          });
+          return;
+        }
+
+        targetIds = selectedDatas.map((item) => item.Interview_Id);
+        titleText = `ยืนยันการส่งให้ ${targetIds.length} คนที่เลือก?`;
+        bodyText = "ระบบจะทำการอัปเดตลิงก์เฉพาะผู้ที่ถูกเลือกเท่านั้น";
+      } else {
+        if (candidateData.length === 0) {
+          Swal.fire({
+            icon: "warning",
+            title: "ไม่พบข้อมูล",
+            text: "ไม่มีรายชื่อผู้สมัครในรายการปัจจุบัน",
+          });
+          return;
+        }
+
+        targetIds = candidateData.map((item) => item.Interview_Id);
+        titleText = "คุณต้องการเพิ่มลิงก์สัมภาษณ์ทั้งหมดหรือไม่?";
+        bodyText = `ระบบจะทำการอัปเดตลิงก์ให้กับผู้สมัครจำนวน ${targetIds.length} คน`;
+      }
+
+      // Create payload
+      const payload = {
+        eventName: filters.eventName,
+        interviewLink: filters.interviewLink,
+        interviewIds: targetIds,
+      };
+
+      Swal.fire({
+        icon: "question",
+        title: titleText,
+        text: bodyText,
+        showCancelButton: true,
+        confirmButtonText: "ยืนยัน",
+        cancelButtonText: "ยกเลิก",
+        showLoaderOnConfirm: true,
+        allowOutsideClick: () => !Swal.isLoading(),
+
+        preConfirm: () => {
+          return new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler((response) => {
+                if (response.success) {
+                  resolve(response);
+                } else {
+                  reject(
+                    new Error(response.message || "เกิดข้อผิดพลาดจาก Server"),
+                  );
+                }
+              })
+              .withFailureHandler((error) => {
+                reject(error);
+              })
+              .addLinktoSheet(payload);
+          });
+        },
+      })
+        .then((result) => {
+          if (result.isConfirmed) {
+            Swal.fire({
+              icon: "success",
+              title: result.value.message || "เพิ่มลิงก์สัมภาษณ์สำเร็จ",
+              timer: 2000,
+              showConfirmButton: false,
+            });
+
+            handleClear();
+            setIsClickSelected(false);
+            setSelectedDatas([]);
+            fetchCandidateWithOutInterviewLink("reset");
+          }
+        })
+        .catch((error) => {
+          Swal.fire({
+            icon: "error",
+            title: "เกิดข้อผิดพลาด",
+            text: error.message,
+          });
+        });
+    };
+
+    const handlePageChange = (p) => {
+      setPage(p);
+      window.scrollTo(0, 0);
+    };
+
+    console.log(selectedDatas);
+
+    return (
+      <div className="w-full max-w-7xl xl:max-w-[1440px] mx-auto pb-24">
+        <div className="flex flex-col md:flex-row justify-between items-center md:items-end mb-6 gap-4 animate-fade-in-up relative z-10">
+          <div className="flex flex-col text-center md:text-start">
+            <SystemHeader
+              title="เพิ่มลิงก์สัมภาษณ์"
+              subTitle="เพิ่มลิงก์สัมภาษณ์ให้ผู้สมัครที่มีสิทธิ์สัมภาษณ์"
+            />
+          </div>
+
+          {paginationData && paginationData.totalItems > 0 && (
+            <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg text-sm font-medium border border-emerald-100">
+              พบข้อมูลทั้งหมด{" "}
+              <span className="font-bold text-emerald-800">
+                {paginationData.totalItems}
+              </span>{" "}
+              รายการ
+            </div>
+          )}
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSubmit("ALL");
+          }}
+          className="bg-base-100 p-5 rounded-2xl shadow-sm border border-base-300 mb-8 animate-fade-in-up relative z-10"
+        >
+          <div className="flex flex-col gap-4">
+            {/* --- ROW 1: Filters & Toggle Select Mode --- */}
+            <div className="flex flex-col lg:flex-row gap-4 items-end w-full">
+              {/* 1. Event Input */}
+              <div className="w-full lg:flex-1">
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 ml-1 block">
+                  อีเวนต์
+                </label>
+                <SearchableSelect
+                  name="eventName"
+                  value={filters.eventName || ""}
+                  onChange={handleInputChange}
+                  options={optionLoading ? [] : eventOptions}
+                  disabled={optionLoading}
+                />
+              </div>
+
+              {/* 2. BU Input */}
+              <div className="w-full lg:flex-1">
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 ml-1 block">
+                  เลือกภูมิภาค/สาขา
+                </label>
+                <SearchableSelect
+                  name="buName"
+                  value={filters.buName || ""}
+                  onChange={handleInputChange}
+                  options={buOptions}
+                  disabled={optionLoading || !filters.eventName}
+                />
+              </div>
+
+              {/* 3. Controls (Toggle Select Mode / Clear) */}
+              <div className="w-full lg:w-auto flex gap-2 pt-2 lg:pt-0">
+                <button
+                  type="button"
+                  onClick={() => setIsClickSelected(!isClickSelected)}
+                  className={`btn btn-ghost ${
+                    !isClickSelected &&
+                    " text-green-500 hover:bg-green-100 border-green-200"
+                  } ${isClickSelected && "btn-active bg-green-100 text-green-600 border-green-300"}`}
+                  disabled={loading}
+                >
+                  {isClickSelected ? "ปิดโหมดเลือก" : "เลือกผู้สมัคร"}
+                </button>
+
+                {/* Clear Button is always visible now to keep layout consistent */}
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  className="btn btn-ghost text-gray-500 hover:bg-slate-100 border-slate-200"
+                  disabled={loading}
+                  title="ล้างค่าการค้นหา"
+                >
+                  ล้างค่า
+                </button>
+              </div>
+            </div>
+
+            {/* --- ROW 2: Link Input & Action Buttons --- */}
+            <div className="flex flex-col lg:flex-row gap-4 items-end w-full border-t border-base-300 pt-4 lg:border-none lg:pt-0">
+              {/* 1. Link Input */}
+              <div className="w-full lg:flex-1">
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 ml-1 block">
+                  ลิงก์สัมภาษณ์
+                </label>
+                <InputField
+                  name="interviewLink"
+                  value={filters.interviewLink || ""}
+                  onChange={handleInputChange}
+                  disabled={optionLoading}
+                  required
+                />
+              </div>
+
+              {/* 2. Action Buttons Group (The 2 Buttons you requested) */}
+              <div className="w-full lg:w-auto flex flex-col sm:flex-row gap-3">
+                {/* Button A: Add to SELECTED */}
+                {isClickSelected && (
+                  <button
+                    type="button"
+                    onClick={() => handleSubmit("SELECTED")}
+                    className="btn bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-md hover:shadow-lg w-full lg:w-auto px-6 gap-2"
+                    disabled={loading || selectedDatas.length === 0}
+                  >
+                    แนบลิงก์เฉพาะที่เลือก
+                    {selectedDatas.length > 0 && (
+                      <span className="badge badge-sm badge-success text-white">
+                        {selectedDatas.length}
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                {/* Button B: Add to ALL */}
+                {!isClickSelected && (
+                  <button
+                    type="button"
+                    onClick={() => handleSubmit("ALL")}
+                    className="btn bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-md hover:shadow-lg w-full lg:w-auto px-6 gap-2"
+                    disabled={loading}
+                  >
+                    แนบลิงก์ทั้งหมด
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </form>
+
+        {loading ? (
+          <div className="w-full py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
+            <span className="loading loading-dots loading-lg text-emerald-500"></span>
+            <p className="text-sm font-light">กำลังโหลดข้อมูล...</p>
+          </div>
+        ) : (
+          <div className="animate-fade-in-up">
+            {candidateData.length > 0 ? (
+              <div className="z-1">
+                <CandidateTable
+                  candidates={candidateData}
+                  isClickSelected={isClickSelected}
+                  setIsSeeMoreDetail={setIsSeeMoreDetail}
+                  selectedDatas={selectedDatas}
+                  setSelectedDatas={setSelectedDatas}
+                  user={user}
+                />
+
+                <div className="mt-6 flex justify-center">
+                  <PagePagination
+                    currentPage={paginationData.currentPage || 1}
+                    totalPages={paginationData.totalPages || 1}
+                    onPageChange={handlePageChange}
+                  />
+                </div>
+              </div>
+            ) : (
+              // Empty State ที่สวยงามขึ้น
+              <div className="w-full py-16 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                <div className="text-4xl mb-2">📄</div>
+                <p className="text-gray-500 font-medium">ไม่พบข้อมูลผู้สมัคร</p>
+                <p className="text-slate-400 text-sm mt-1">
+                  ลองปรับเปลี่ยนคำค้นหาหรือตัวกรองใหม่อีกครั้ง
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isSeeMoreDetail && (
+          <InterviewDetailModal
+            interview={isSeeMoreDetail}
+            isOpen={!!isSeeMoreDetail}
+            onClose={() => setIsSeeMoreDetail(null)}
+            user={user}
+            onRefresh={fetchCandidateWithOutInterviewLink}
+          />
+        )}
+      </div>
+    );
+  };
+</script>

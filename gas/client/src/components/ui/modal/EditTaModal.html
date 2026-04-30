@@ -1,0 +1,120 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+  const EditTaModal = ({ user, isOpen, onClose, onRefresh, ta }) => {
+    const [formData, setFormData] = useState({
+      userRole: user.role,
+      userName: user.name,
+      taUserName: ta.Username,
+      fullname: ta.Name,
+      role: ta.Role,
+    });
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleChange = (e) => {
+      const { name, value } = e.target;
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+
+      setIsLoading(true);
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success === true) {
+            onClose();
+            onRefresh();
+            Swal.fire({
+              icon: "success",
+              title: res.message,
+              showConfirmButton: false,
+              timer: 1500,
+            });
+          } else {
+            Swal.fire({
+              icon: "error",
+              title: res.message,
+              timer: 2000,
+            });
+          }
+          onClose();
+          setIsLoading(false);
+        })
+        .withFailureHandler((err) => {
+          if (err) {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: err.message,
+              timer: 2000,
+            });
+          }
+          setIsLoading(false);
+        })
+        .updateTaData(formData);
+    };
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+        {/* 1. Backdrop */}
+        <div
+          className="absolute inset-0 bg-black/60 transition-opacity"
+          onClick={onClose}
+        ></div>
+
+        {/* 2. Dialog */}
+        <div className="bg-white w-full max-w-md mx-auto rounded-lg shadow-lg z-50 overflow-y-auto animate-fade-in-up">
+          {/* Header */}
+          <div className="flex justify-between items-center p-4 border-b border-gray-200 rounded-t-lg">
+            <h2 className="text-lg font-medium">แก้ไขผู้ใช้งาน</h2>
+            <button
+              onClick={onClose}
+              className="btn btn-circle btn-ghost group"
+            >
+              <i className="fa-solid fa-xmark text-gray-500 group-hover:text-gray-700 duration-200"></i>
+            </button>
+          </div>
+
+          {/* Body */}
+          <form
+            onSubmit={handleSubmit}
+            className="w-full text-sm space-y-3 p-4"
+          >
+            {/* name */}
+            <div className="flex flex-col gap-1">
+              <label htmlFor="fullname" className="flex gap-2 text-gray-500">
+                ชื่อ-สกุล <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                className="w-full input focus-within:border-none"
+                id="fullname"
+                name="fullname"
+                value={formData.fullname}
+                onChange={handleChange}
+                placeholder="ชื่อ-สกุล"
+                required
+              />
+            </div>
+
+            <SelectField
+              label="สิทธิ์การใช้งาน"
+              name="role"
+              value={formData.role}
+              onChange={handleChange}
+              options={["ADMIN", "SUPERADMIN"]}
+            />
+
+            <button className="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 text-white cursor-pointer rounded-box duration-200 mt-1 text-base">
+              {isLoading ? (
+                <span className="loading loading-spinner loading-md"></span>
+              ) : (
+                "ยืนยันการแก้ไข"
+              )}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  };
+</script>

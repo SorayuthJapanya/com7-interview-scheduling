@@ -1,0 +1,47 @@
+<script type="text/babel">
+  const SelectField = ({
+    label,
+    name,
+    value,
+    onChange,
+    options,
+    colSpan = 1,
+    required = false,
+    disabled = false,
+  }) => {
+    const getColSpanClass = (span) => {
+      const classMap = {
+        1: "col-span-1 lg:col-span-1",
+        2: "col-span-1 lg:col-span-2",
+        3: "col-span-1 lg:col-span-3",
+        4: "col-span-1 lg:col-span-4",
+      };
+      return classMap[span] || "col-span-1 lg:col-span-1";
+    };
+
+    return (
+      <div className={`form-control w-full ${getColSpanClass(colSpan)}`}>
+        <label className="text-gray-500 text-sm">
+          {label} {required && <span className="text-error">*</span>}
+        </label>
+        <select
+          name={name}
+          value={value}
+          onChange={onChange}
+          required={required}
+          disabled={disabled}
+          className="select select-bordered w-full focus:select-primary"
+        >
+          <option value="" disabled>
+            -- กรุณาเลือก --
+          </option>
+          {options.map((opt, idx) => (
+            <option key={idx} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  };
+</script>

@@ -1,0 +1,254 @@
+<script type="text/babel">
+  const { useState, useRef } = React;
+
+  const AddJobHiringModal = ({ onClose, onRefresh }) => {
+    const [files, setFiles] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+
+    // set input file ref
+    const fileInputRef = useRef(null);
+    const MAX_FILES = 5;
+
+    const generateId = () => "_" + Math.random().toString(36).substr(2, 9);
+
+    const readFileAsBase64 = (file) => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () =>
+          resolve({
+            id: generateId(),
+            base64: reader.result,
+            file: file,
+            name: file.name,
+          });
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+      });
+    };
+
+    const handleFiles = async (incomeFiles) => {
+      if (!incomeFiles || incomeFiles.length === 0) return;
+
+      // check limits
+      const remainingSlots = MAX_FILES - files.length;
+      if (remainingSlots <= 0) {
+        Swal.fire({
+          icon: "error",
+          title: `อนุญาตให้เลือกไฟล์ได้สูงสุด ${MAX_FILES} ไฟล์`,
+        });
+      }
+
+      // check file type
+      const validFiles = Array.from(incomeFiles)
+        .filter((file) => file.type.startsWith("image/"))
+        .slice(0, remainingSlots);
+
+      setIsLoading(true);
+
+      try {
+        const promises = validFiles.map((file) => readFileAsBase64(file));
+        const results = await Promise.all(promises);
+
+        setFiles((prev) => [...prev, ...results]);
+      } catch (error) {
+        Swal.fire({
+          icon: "error",
+          title: error.message || "อัพโหลดไฟล์ล้มเหลว",
+        });
+      } finally {
+        setIsLoading(false);
+        setIsDragging(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    };
+
+    const onDragOver = (e) => {
+      e.preventDefault();
+    };
+
+    const onDragLeave = (e) => {
+      e.preventDefault();
+      setIsDragging(false);
+    };
+
+    const onDrop = (e) => {
+      e.preventDefault();
+      setIsDragging(false);
+      handleFiles(e.dataTransfer.files);
+    };
+
+    const removeFile = (imageId) => {
+      setFiles((prev) => prev.filter((file) => file.id !== imageId));
+    };
+
+    const onClickUpload = () => {
+      if (fileInputRef.current) fileInputRef.current.click();
+    };
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      const formattedFiles = files.map((file) => {
+        return {
+          fileName: file.name,
+          base64Data: file.base64,
+          mimeType: file.file.type,
+        };
+      });
+
+      setIsUploading(true);
+
+      google.script.run
+        .withSuccessHandler((response) => {
+          setIsUploading(false);
+          if (response.success) {
+            Swal.fire({
+              icon: "success",
+              title: response.message,
+              timer: 2000,
+            });
+            onClose();
+            if (onRefresh) onRefresh();
+          } else {
+            Swal.fire({
+              icon: "error",
+              title: response.message,
+              timer: 2000,
+            });
+          }
+        })
+        .withFailureHandler((err) => {
+          setIsUploading(false);
+          Swal.fire({
+            icon: "error",
+            title: "เกิดข้อผิดพลาด",
+            text: err.message || "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ",
+            timer: 2000,
+          });
+        })
+        .addJobHiringPoster(formattedFiles);
+    };
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+        {/* Backdrop */}
+        <div
+          className="absolute inset-0 bg-black/60 transition-opacity"
+          onClick={onClose}
+        ></div>
+
+        {/* Dialog */}
+        <div className="bg-white w-full max-w-3xl mx-auto rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[90vh] animate-fade-in-up">
+          {/* Header */}
+          <div className="flex justify-between items-center p-4 border-b border-gray-200 rounded-t-lg">
+            <h2 className="text-lg font-medium">เพิ่มรูปภาพตำแหน่งงานว่าง</h2>
+            <button
+              onClick={onClose}
+              className="btn btn-circle btn-ghost group"
+            >
+              <i className="fa-solid fa-xmark text-gray-500 group-hover:text-gray-700 duration-200"></i>
+            </button>
+          </div>
+
+          {/* Drag & Drop */}
+          <div className="p-6 overflow-y-auto">
+            {/* --- GRID LAYOUT --- */}
+            <div
+              className={`grid ${files.length === 0 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3"} gap-4`}
+            >
+              {/* 1. Upload Button / Drop Zone (Only show if limit not reached) */}
+              {files.length < MAX_FILES && (
+                <div
+                  onDragOver={onDragOver}
+                  onDragLeave={onDragLeave}
+                  onDrop={onDrop}
+                  onClick={onClickUpload}
+                  className={`
+                    relative w-full flex flex-col items-center justify-center ${files.length === 0 && "min-h-[50vh]"} hover:bg-emerald-50
+                    border-2 border-dashed hover:border-green-500 rounded-xl cursor-pointer transition-all duration-200
+                    ${
+                      isDragging
+                        ? "border-emerald-500 bg-emerald-50 scale-105"
+                        : "border-gray-300 bg-gray-50 hover:bg-gray-100 hover:border-gray-400"
+                    }
+                  `}
+                >
+                  {isLoading ? (
+                    <div className="flex items-center justify-center w-full h-full">
+                      <span className="loading loading-ring loading-md text-lg"></span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-1 items-center justify-center">
+                      <i className="fa-solid fa-plus text-gray-500"></i>
+                      <span className="text-sm text-gray-700">
+                        ลากและวางรูปภาพที่ต้องการในช่องนี้
+                      </span>
+                    </div>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    accept="image/*"
+                    onChange={(e) => handleFiles(e.target.files)}
+                  />
+                </div>
+              )}
+
+              {/* 2. Image Previews */}
+              {files.map((item, index) => (
+                <div
+                  key={item.id}
+                  className="relative aspect-square group rounded-xl overflow-hidden border border-gray-200 bg-gray-100"
+                >
+                  <img
+                    src={item.base64}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                  />
+
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+
+                  <div className="absolute bottom-0 left-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <p className="text-white text-sm truncate">{item.name}</p>
+                  </div>
+
+                  <button
+                    onClick={() => removeFile(item.id)}
+                    className="absolute top-2 right-2 bg-white/90 text-red-500 size-8 flex items-center justify-center rounded-full shadow-sm cursor-pointer hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 duration-200"
+                  >
+                    <i className="fa-solid fa-trash-can text-sm"></i>
+                  </button>
+
+                  {/* Badge for Order */}
+                  <div className="absolute top-2 left-2 bg-black/50 text-white size-5 rounded-full flex items-center justify-center text-xs">
+                    {index + 1}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-5 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+            <button onClick={onClose} disabled={isUploading} className="btn">
+              ยกเลิก
+            </button>
+            <button
+              onClick={handleSubmit}
+              className="btn bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={files.length === 0 || isUploading}
+            >
+              {isUploading ? (
+                <span className="loading loading-spinner loading-md"></span>
+              ) : (
+                `อัปโหลด (${files.length}) รูปภาพ`
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+</script>

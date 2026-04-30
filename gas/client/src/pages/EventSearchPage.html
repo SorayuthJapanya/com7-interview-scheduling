@@ -1,0 +1,199 @@
+<script type="text/babel">
+  const { useLocation } = ReactRouterDOM;
+
+  const EventSearchPage = () => {
+    const location = useLocation();
+
+    const useQuery = () => {
+      return new URLSearchParams(location.search);
+    };
+
+    const query = useQuery();
+    const eventNameParam = query.get("eventName") || "";
+    const dateParam = query.get("date");
+
+    const [events, setEvents] = useState([]);
+
+    const [filters, setFilters] = useState({
+      eventName: eventNameParam,
+      date: dateParam,
+    });
+    const [eventStucture, setEventStucture] = useState([]);
+    const [eventsOptions, setEventOptions] = useState([]);
+    const [optionsLoading, setOptionsLoading] = useState(false);
+    const [minDate, setMinDate] = useState("");
+    const [maxDate, setMaxDate] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+
+    const parseThaiDate = (dateStr) => {
+      if (!dateStr) return null;
+      const [day, month, yearBE] = dateStr.split("/").map(Number);
+      return new Date(yearBE - 543, month - 1, day);
+    };
+
+    const formatDateForInput = (dateObj) => {
+      if (!dateObj || isNaN(dateObj)) return "";
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+      const day = String(dateObj.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    const handleInputChange = (e) => {
+      const { name, value } = e.target;
+      setFilters((prev) => {
+        const newData = { ...prev, [name]: value };
+        if (name === "eventName") {
+          newData.date = "";
+        }
+        return newData;
+      });
+    };
+
+    const handleDateChange = (field, value) => {
+      const val = Array.isArray(value) ? value[0] : value;
+      let finalVal = val;
+      if (val instanceof Date) {
+        if (field === "date") finalVal = formatDateForInput(val);
+      }
+      setFilters((prev) => ({ ...prev, [field]: finalVal }));
+    };
+
+    const fetchEventSlots = () => {
+      setIsLoading(true);
+      let formattedDate = "";
+      if (filters.date) {
+        const d = new Date(filters.date);
+        // เช็คว่าเป็นวันที่ที่ถูกต้องหรือไม่ (isValid)
+        if (!isNaN(d.getTime())) {
+          formattedDate = d.toISOString().split("T")[0];
+        }
+      }
+
+      const query = {
+        eventName: filters.eventName,
+        date: formattedDate,
+      };
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          setEvents(res.data);
+          setIsLoading(false);
+        })
+        .withFailureHandler((err) => {
+          setEvents([]);
+          setIsLoading(false);
+        })
+        .checkSlotStatus(query);
+    };
+
+    const fetchFullStucture = () => {
+      setOptionsLoading(true);
+      google.script.run
+        .withSuccessHandler((res) => {
+          setEventStucture(res.data);
+
+          const eventNames = res.data.map((event) => event.eventName);
+          const sortedData = eventNames.sort((a, b) => a.localeCompare(b));
+          setEventOptions(sortedData);
+          setOptionsLoading(false);
+        })
+        .withFailureHandler((error) => {
+          console.error(error);
+          setEventStucture([]);
+          setEventOptions([]);
+          setOptionsLoading(false);
+        })
+        .getFullEventStructure();
+    };
+
+    useEffect(() => {
+      fetchEventSlots();
+      fetchFullStucture();
+    }, []);
+
+    useEffect(() => {
+      if (filters.eventName && eventStucture.length > 0) {
+        const selectedEventObj = eventStucture.find(
+          (p) => p.eventName === filters.eventName,
+        );
+
+        if (
+          selectedEventObj &&
+          selectedEventObj.slots &&
+          selectedEventObj.slots.length > 0
+        ) {
+          const timestamps = selectedEventObj.slots
+            .map((s) => {
+              const d = parseThaiDate(s.date);
+              return d ? d.getTime() : null;
+            })
+            .filter((t) => t !== null);
+
+          if (timestamps.length > 0) {
+            const minTs = Math.min(...timestamps);
+            const maxTs = Math.max(...timestamps);
+
+            setMinDate(formatDateForInput(new Date(minTs)));
+            setMaxDate(formatDateForInput(new Date(maxTs)));
+          } else {
+            setMinDate("");
+            setMaxDate("");
+          }
+        } else {
+          setMinDate("");
+          setMaxDate("");
+        }
+      } else {
+        setMinDate("");
+        setMaxDate("");
+      }
+    }, [filters.eventName, eventStucture]);
+
+    return (
+      <div className="w-full flex flex-col">
+        <div className="flex flex-col items-center py-20 bg-base-200 padding-container gap-4 sm:gap-8">
+          <Header
+            title="อีเวนต์งานที่เปิดรับสมัคร"
+            subTitle="เลือกอีเวนต์และจองวันเวลาที่สะดวกได้ทันที"
+          />
+
+          <div className="w-full xl:px-20">
+            <SlotEventSearch
+              filters={filters}
+              onInputChange={handleInputChange}
+              onDateChange={handleDateChange}
+              minDate={minDate}
+              maxDate={maxDate}
+              events={eventsOptions}
+              isLoading={optionsLoading}
+              onSubmit={fetchEventSlots}
+            />
+          </div>
+        </div>
+        <div className="padding-container pt-10">
+          {isLoading ? (
+            <div className="w-full flex justify-center animate-spin">
+              <span className="loading loading-spinner loading-md"></span>
+            </div>
+          ) : (
+            <div className="space-y-6 max-w-7xl xl:max-w-[1440px] mx-auto">
+              <p className="text-gray-500 xl:px-20">
+                Showing: {events ? events.length : 0}
+              </p>
+              {events.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 xl:px-20">
+                  <EventCards events={events} date={filters.date} />
+                </div>
+              ) : (
+                <div className="w-full flex justify-center text-gray-600">
+                  <p>ไม่พบอีเวนต์ที่ค้นหา</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+</script>

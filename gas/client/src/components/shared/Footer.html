@@ -1,0 +1,92 @@
+<script type="text/babel">
+  const Footer = () => {
+    const socialMedia = [
+      {
+        icon: <i className="fa-brands fa-facebook-f"></i>,
+        url: "https://web.facebook.com/Comsevencareer?_rdc=1&_rdr#",
+        style: "bg-[#1877F2] text-white hover:bg-[#166FE5]",
+      },
+      {
+        icon: <i className="fa-brands fa-instagram"></i>,
+        url: "https://www.instagram.com/comsevencareer?igshid=OGQ5ZDc2ODk2ZA%3D%3D",
+        style:
+          "bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white hover:opacity-90",
+      },
+      {
+        icon: <i className="fa-brands fa-line"></i>,
+        url: "https://page.line.me/comsevencareer?openQrModal=true",
+        style: "bg-[#06C755] text-white hover:bg-[#05B94F]",
+      },
+      {
+        icon: <i className="fa-brands fa-tiktok"></i>,
+        url: "https://www.tiktok.com/@comsevencareer?_t=8fmsCUSQOxe&_r=1",
+        style: "bg-black text-white hover:bg-neutral-800",
+      },
+    ];
+
+    return (
+      <>
+        <div className="w-full padding-container mt-24 text-sm text-gray-500 py-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 pb-6">
+            {/* Company content */}
+            <div className="flex flex-col gap-3 items-start">
+              <img
+                src="https://companieslogo.com/img/orig/COM7.BK_BIG-1d5f8726.png?t=1720244491"
+                alt="com7-logo"
+                className="h-8 sm:h-9"
+              />
+              <p className="max-w-80">บริษัท คอมเซเว่น จำกัด (มหาชน)</p>
+              <div className="flex flex-row gap-3 items-center justify-start">
+                {socialMedia.map((item, index) => (
+                  <a
+                    key={index}
+                    href={item.url}
+                    target="_blank"
+                    className={`
+                    ${item.style}
+                    w-8 sm:w-10 h-8 sm:h-10 rounded-full
+                    flex items-center justify-center
+                    transition-all duration-500
+                    hover:rotate-360
+                    hover:scale-125 cursor-pointer
+                  `}
+                  >
+                    {item.icon}
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            {/* HR Contact */}
+            <div className="flex flex-col gap-3 items-start">
+              <h3 className="text-lg">ฝ่ายทรัพยากรบุคคล</h3>
+              <p>
+                ร่วมเป็นส่วนหนึ่งของบริษัท COM7
+                แค่เพียงคุณสมัครงานเข้ามาเพื่อคว้าโอกาสดีๆกับทางบริษัท
+              </p>
+              <div className="flex items-center gap-1">
+                <i className="fa-solid fa-phone"></i>
+                <p>02-017-7777 ต่อ 7212,7208,7209,7210</p>
+              </div>
+              <div className="flex items-center gap-1">
+                <i className="fa-solid fa-tty"></i>
+                <p>02-017-7729</p>
+              </div>
+            </div>
+
+            {/* Company Contact */}
+            <div className="flex flex-col gap-3 items-start">
+              <h3 className="text-lg">ติดต่อเรา</h3>
+              <p>บริษัท คอมเซเว่น จำกัด (มหาชน)</p>
+              <p>549/1 ถนนสรรพาวุธ แขวงบางนาใต้ เขตบางนา กรุงเทพมหานคร 10260</p>
+              <p>www.comseven.com</p>
+            </div>
+          </div>
+        </div>
+        <div className="w-full text-center bg-base-200 text-sm text-gray-500 py-6">
+          <p>Copyright &copy; 2026 Com7 Public Company Limited</p>
+        </div>
+      </>
+    );
+  };
+</script>

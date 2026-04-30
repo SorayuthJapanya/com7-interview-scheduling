@@ -1,0 +1,329 @@
+<script type="text/babel">
+  const { Link, useLocation, useHistory } = ReactRouterDOM;
+  const { useState } = React;
+
+  const Navbar = ({ user, onLogout, onClickLogin }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const location = useLocation();
+    const history = useHistory();
+
+    const navbarMenu = [
+      { name: "หน้าหลัก", path: "/" },
+      { name: "ลงทะเบียน", path: "/events" },
+      { name: "ตำแหน่งงานว่าง", path: "/job-hiring" },
+      user &&
+        user.role === "USER" && {
+          name: "เช็คสถานะการสัมภาษณ์",
+          path: "/interview",
+        },
+      user &&
+        (user.role === "ADMIN" || user.role === "SUPERADMIN") && {
+          name: "จัดการระบบ",
+          path: "/system",
+        },
+      user &&
+        user.role === "MANAGER" && {
+          name: "ข้อมูลผู้สมัคร",
+          path: "/manager-candidate",
+        },
+      user &&
+        user.role === "MANAGER" && {
+          name: "ประวัติการดำเนินการ",
+          path: "/manager-transaction",
+        },
+    ].filter(Boolean);
+
+    const isActive = (path) => {
+      if (path === "/") {
+        return location.pathname === "/";
+      }
+      return location.pathname === path;
+    };
+
+    const handleMobileClick = () => {
+      handleScrollToTop();
+      setIsOpen(false);
+    };
+
+    const handleScrollToTop = () => {
+      window.scrollTo(0, 0);
+    };
+
+    const getInitialFromThaiName = (fullname = "") => {
+      if (!fullname) return "?";
+
+      const prefixes = ["นาย", "นางสาว", "นาง"];
+
+      let name = fullname.trim();
+
+      prefixes.forEach((prefix) => {
+        if (name.startsWith(prefix)) {
+          name = name.replace(prefix, "").trim();
+        }
+      });
+
+      return name.charAt(0);
+    };
+
+    const initial = user ? getInitialFromThaiName(user.name) : "?";
+
+    const getAvatarColor = (name) => {
+      const colors = [
+        "bg-emerald-600",
+        "bg-blue-600",
+        "bg-purple-600",
+        "bg-orange-600",
+        "bg-pink-600",
+      ];
+      const index = name.charCodeAt(0) % colors.length;
+      return colors[index];
+    };
+
+    const convertToDriveThumbnail = (url, size = 200) => {
+      if (!url) return null;
+
+      const driveIdRegex = /(?:\/d\/|id=)([\w-]+)/;
+      const match = url.match(driveIdRegex);
+
+      if (match && match[1]) {
+        const fileId = match[1];
+        return `https://drive.google.com/thumbnail?id=${fileId}`;
+      }
+
+      return null;
+    };
+
+    return (
+      <nav className="fixed top-0 z-20 w-full border-b border-base-200 bg-base-100 shadow-sm">
+        <div className="padding-container py-2 sm:py-4">
+          <div className="w-full flex items-center justify-between">
+            <Link
+              to="/"
+              className="cursor-pointer duration-300 hover:scale-105"
+            >
+              <img
+                src="https://companieslogo.com/img/orig/COM7.BK_BIG-1d5f8726.png?t=1720244491"
+                alt="com7-logo"
+                className="h-7 sm:h-9"
+              />
+            </Link>
+
+            {/* Desktop Menu */}
+            <div className="hidden lg:block">
+              <div className="flex items-center justify-end gap-6">
+                {navbarMenu.map((item, index) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={handleScrollToTop}
+                    className={`hover:text-emerald-600 duration-200 cursor-pointer ${
+                      isActive(item.path)
+                        ? "text-emerald-600 underline font-medium"
+                        : ""
+                    }`}
+                  >
+                    {item.name}
+                  </Link>
+                ))}
+
+                {/* Login Button */}
+                {user ? (
+                  <div className="relative group cursor-pointer">
+                    <button className="flex items-center gap-2">
+                      {/* Initial Avatar */}
+                      {user.profile ? (
+                        <img
+                          src={
+                            convertToDriveThumbnail(user.profile) ||
+                            "https://www.shutterstock.com/image-vector/user-profile-icon-vector-avatar-600nw-2558760599.jpg"
+                          }
+                          alt={user.name}
+                          className="w-8 h-8 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div
+                          className={`w-8 h-8 rounded-full text-white flex items-center justify-center font-medium ${getAvatarColor(
+                            user.name,
+                          )}`}
+                        >
+                          {initial}
+                        </div>
+                      )}
+
+                      <span className="font-medium text-sm">{user.name}</span>
+                      <i className="fa-solid fa-chevron-down group-hover:rotate-180 text-xs duration-300"></i>
+                    </button>
+
+                    {/* Dropdown */}
+                    <div
+                      className="absolute right-0 mt-0.5 w-72 bg-white border border-gray-300 shadow-lg rounded-xl
+                      opacity-0 group-hover:opacity-100
+                      pointer-events-none group-hover:pointer-events-auto transition"
+                    >
+                      {/* User Info */}
+                      <div className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {user.profile ? (
+                            <img
+                              src={
+                                convertToDriveThumbnail(user.profile) ||
+                                "https://www.shutterstock.com/image-vector/user-profile-icon-vector-avatar-600nw-2558760599.jpg"
+                              }
+                              alt={user.name}
+                              className="size-12 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div
+                              className={`w-8 h-8 rounded-full text-white flex items-center justify-center font-medium ${getAvatarColor(
+                                user.name,
+                              )}`}
+                            >
+                              {initial}
+                            </div>
+                          )}
+
+                          <div className="flex flex-col">
+                            <span className="font-medium text-gray-800">
+                              {user.name}
+                            </span>
+                            <span className="text-sm text-gray-500">
+                              {user.email}
+                            </span>
+                          </div>
+                        </div>
+
+                        {user.phone && (
+                          <div className="mt-4 text-sm text-gray-500 flex items-center gap-2">
+                            <i className="fa-solid fa-phone"></i>
+                            {user.phone}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="border-t border-base-200"></div>
+
+                      {/* Logout */}
+                      <button
+                        onClick={onLogout}
+                        className="w-full text-left px-4 py-2 text-red-600
+                      hover:bg-red-50 rounded-b-xl cursor-pointer transition-colors duration-100"
+                      >
+                        <i className="fa-solid fa-right-from-bracket mr-2"></i>
+                        ออกจากระบบ
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    className="bg-emerald-600 text-white rounded-box px-4 py-2 transform transition-all hover:-translate-y-0.5 duration-200 active:translate-y-0 hover:bg-emerald-500 cursor-pointer font-medium inline-block"
+                    onClick={onClickLogin}
+                  >
+                    เข้าสู่ระบบ
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Hamburger Button */}
+            <div className="lg:hidden">
+              <button
+                className="btn btn-square btn-ghost"
+                onClick={() => setIsOpen(!isOpen)}
+              >
+                {isOpen ? (
+                  <i className="fa-solid fa-xmark text-lg text-gray-600"></i>
+                ) : (
+                  <i className="fa-solid fa-bars text-lg text-gray-600"></i>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Menu Dropdown */}
+        {isOpen && (
+          <div className="lg:hidden absolute top-full left-0 w-full bg-base-100 border-b border-base-200 shadow-lg animate-slide-down rounded-b-xl">
+            <div className="flex flex-col p-4 gap-4">
+              {navbarMenu.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={handleMobileClick}
+                  className={`py-2 px-2 rounded-xl cursor-pointer transition-colors block ${
+                    isActive(item.path)
+                      ? "bg-base-200 text-emerald-600 font-medium"
+                      : "hover:bg-gray-50 text-gray-700"
+                  }`}
+                >
+                  {item.name}
+                </Link>
+              ))}
+
+              {user ? (
+                <div className="p-2">
+                  <div className="flex items-center gap-3">
+                    {user.profile ? (
+                      <img
+                        src={
+                          convertToDriveThumbnail(user.profile) ||
+                          "https://www.shutterstock.com/image-vector/user-profile-icon-vector-avatar-600nw-2558760599.jpg"
+                        }
+                        alt={user.name}
+                        className="size-14 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div
+                        className={`w-8 h-8 rounded-full text-white flex items-center justify-center font-medium ${getAvatarColor(
+                          user.name,
+                        )}`}
+                      >
+                        {initial}
+                      </div>
+                    )}
+
+                    <div className="flex flex-col">
+                      <span className="font-medium text-gray-800">
+                        {user.name}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        {user.email}
+                      </span>
+                    </div>
+                  </div>
+
+                  {user.phone && (
+                    <div className="mt-6 text-sm text-gray-500 flex items-center gap-2">
+                      <i className="fa-solid fa-phone"></i>
+                      {user.phone}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => {
+                      onLogout();
+                      handleMobileClick();
+                    }}
+                    className="mt-2 text-red-600 px-2 py-2 rounded-xl hover:bg-red-50 cursor-pointer w-full text-center"
+                  >
+                    ออกจากระบบ
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      onClickLogin();
+                      handleMobileClick();
+                    }}
+                    className="w-full bg-emerald-600 text-white rounded-box px-4 py-2 font-medium active:scale-95 duration-200 shadow-md text-center block cursor-pointer"
+                  >
+                    เข้าสู่ระบบ
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </nav>
+    );
+  };
+</script>

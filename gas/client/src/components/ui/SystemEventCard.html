@@ -1,0 +1,180 @@
+<script type="text/babel">
+  const { useHistory } = ReactRouterDOM;
+  const SystemEventCard = ({
+    user,
+    event,
+    onEdit,
+    onDelete,
+    onTransaction,
+  }) => {
+    const history = useHistory();
+
+    const formatDate = (dateString) => {
+      if (!dateString) return "-";
+      const date = new Date(dateString);
+      if (date.getFullYear() > 2400) date.setFullYear(date.getFullYear() - 543);
+      return date.toLocaleDateString("th-TH", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    };
+
+    const Icons = {
+      dots: <i className="fa-solid fa-ellipsis-vertical text-lg"></i>,
+      clock: <i className="fa-regular fa-clock"></i>,
+      mapPin: <i className="fa-solid fa-location-dot"></i>,
+      copy: <i className="fa-regular fa-copy"></i>,
+      edit: <i className="fa-solid fa-pen-to-square"></i>,
+      trash: <i className="fa-solid fa-trash-can"></i>,
+      sheet: <i className="fa-solid fa-file-lines"></i>,
+      creditCard: <i className="fa-regular fa-credit-card"></i>,
+    };
+
+    const handleCopyLink = async () => {
+      try {
+        await navigator.clipboard.writeText(event.Sheet_Url);
+        Swal.fire({
+          icon: "success",
+          title: "คัดลอกลิงก์เรียบร้อย",
+          toast: true,
+          position: "top-end",
+          showConfirmButton: false,
+          timer: 1500,
+        });
+      } catch (err) {
+        console.error("Failed to copy: ", err);
+      }
+    };
+
+    const handleClickCard = (eventId) => {
+      const params = new URLSearchParams();
+      const eventName = event.Event_Name;
+
+      if (eventId) params.append("eventId", eventId);
+      if (eventName) params.append("eventName", eventName);
+
+      history.push({
+        pathname: "/system/manage-slots",
+        search: params.toString(),
+      });
+      window.scrollTo(0, 0);
+    };
+
+    return (
+      <div
+        onClick={() => handleClickCard(event.Sheet_ID)}
+        className="card bg-white shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 rounded-xl group cursor-pointer"
+      >
+        {/* ส่วนรูปภาพ */}
+        <figure className="relative h-48 sm:h-56 w-full overflow-hidden">
+          <img
+            src={
+              event.Image_Url ||
+              "https://via.placeholder.com/400x200?text=No+Image"
+            }
+            alt={event.Event_Name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+
+          {/* Badge สถานะ (Top-Right) */}
+          <div
+            className={`absolute top-4 right-4 badge border-none rounded-full text-white font-medium shadow-sm ${
+              event.Status ? "bg-emerald-500" : "bg-rose-500"
+            }`}
+          >
+            {event.Status ? "Active" : "Inactive"}
+          </div>
+
+          {/* Badge ประเภท Event (Top-Left Optional) */}
+          <div className="absolute top-4 left-4 badge badge-ghost rounded-full bg-base-300 backdrop-blur-sm text-xs font-bold">
+            {event.Event_Type}
+          </div>
+        </figure>
+
+        {/* ส่วนเนื้อหา */}
+        <div className="card-body p-5">
+          <div className="flex justify-between items-start">
+            <h2
+              className="card-title text-lg font-medium line-clamp-1"
+              title={event.Event_Name}
+            >
+              {event.Event_Name}
+            </h2>
+
+            {/* 3-Dot Menu Dropdown */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="dropdown dropdown-bottom dropdown-end relative"
+            >
+              <label
+                tabIndex={0}
+                className="btn btn-ghost btn-circle btn-sm h-8 w-8 min-h-0"
+              >
+                {Icons.dots}
+              </label>
+              <ul
+                tabIndex={0}
+                className="dropdown-content z-50 menu p-2 shadow-lg bg-base-100 rounded-box w-52 border border-gray-100 absolute top-full right-0 mt-1"
+              >
+                <li>
+                  <a onClick={handleCopyLink} className="gap-3">
+                    {Icons.copy} คัดลอกลิงก์
+                  </a>
+                </li>
+                <li>
+                  <a onClick={() => onEdit(event)} className="gap-3">
+                    {Icons.edit} แก้ไขข้อมูล
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href={event.Sheet_Url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="gap-3"
+                  >
+                    {Icons.sheet} ดู Google Sheet
+                  </a>
+                </li>
+                <li>
+                  <a onClick={() => onTransaction(event)} className="gap-3">
+                    {Icons.creditCard} Transaction
+                  </a>
+                </li>
+                <div className="divider my-1"></div>
+                <li>
+                  <a
+                    onClick={() => onDelete(event)}
+                    className="gap-3 text-rose-500 hover:bg-rose-50"
+                  >
+                    {Icons.trash} ลบอีเวนต์
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          {/* ข้อมูลเวลาและสถานที่ */}
+          <div className="space-y-2 mt-2 text-sm text-gray-600">
+            <div className="flex items-start gap-2">
+              <span className="mt-0.5 text-emerald-600">{Icons.clock}</span>
+              <div className="flex flex-col">
+                <span>เริ่ม: {formatDate(event.Opening_At)}</span>
+                <span>สิ้นสุด: {formatDate(event.Closing_At)}</span>
+              </div>
+            </div>
+            {event.Location && (
+              <div className="flex items-center gap-2">
+                <span className="text-rose-500">{Icons.mapPin}</span>
+                <span className="line-clamp-1">{event.Location}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+</script>

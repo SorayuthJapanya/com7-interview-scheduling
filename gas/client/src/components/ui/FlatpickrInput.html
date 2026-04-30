@@ -1,0 +1,60 @@
+<script type="text/babel">
+  const FlatpickrInput = ({
+    key,
+    label,
+    value,
+    onChange,
+    options,
+    icon,
+    placeholder,
+    disabled = false,
+    required = false,
+  }) => {
+   const inputRef = useRef(null);
+    const fpRef = useRef(null); 
+
+    useEffect(() => {
+      if (inputRef.current) {
+        fpRef.current = flatpickr(inputRef.current, {
+          ...options,
+          defaultDate: value,
+          onChange: (selectedDates, dateStr) => {
+            onChange(dateStr);
+          },
+        });
+      }
+      return () => {
+        if (fpRef.current) fpRef.current.destroy();
+      };
+    }, []); 
+
+    useEffect(() => {
+      if (fpRef.current && value) {
+        fpRef.current.setDate(value, false); 
+      }
+    }, [value]);
+
+    return (
+      <div className="form-control w-full">
+        <label className="text-gray-500 tex-sm">
+          {label}
+        </label>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none text-gray-400">
+            {icon}
+          </div>
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder={placeholder}
+            className="input input-bordered w-full"
+            value={value}
+            data-input
+            disabled={disabled}
+            required={required}
+          />
+        </div>
+      </div>
+    );
+  };
+</script>

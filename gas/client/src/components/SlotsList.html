@@ -1,0 +1,232 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+  const { useHistory } = ReactRouterDOM;
+
+  const SlotsList = ({
+    slots,
+    eventId,
+    slotBookId,
+    interviewId,
+    eventName,
+    eventJobType,
+    date,
+    user,
+    onClickLogin,
+  }) => {
+    const history = useHistory();
+
+    const handleClickEditSlot = (slotId) => {
+      if (!user) {
+        onClickLogin();
+        return;
+      }
+
+      if (slotBookId === slotId) {
+        return;
+      }
+
+      Swal.fire({
+        title: "ยืนยันการแก้ไข",
+        text: "คุณต้องการแก้ไขช่วงเวลาใช่หรือไม่?",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "ยืนยัน",
+        cancelButtonText: "ยกเลิก",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          Swal.fire({
+            title: "กำลังดำเนินการ...",
+            allowOutsideClick: false,
+            didOpen: () => {
+              Swal.showLoading();
+            },
+          });
+
+          const data = {
+            eventId,
+            interviewId,
+            slotId,
+          };
+
+          google.script.run
+            .withSuccessHandler((res) => {
+              if (res.success === true) {
+                Swal.fire({
+                  icon: "success",
+                  title: "สำเร็จ",
+                  text: res.message,
+                  timer: 2000,
+                  showConfirmButton: false,
+                }).then(() => {
+                  history.push("/interview");
+                  window.scrollTo(0, 0);
+                });
+              } else {
+                Swal.fire({
+                  icon: "error",
+                  title: "เกิดข้อผิดพลาด",
+                  text: res.message,
+                });
+              }
+            })
+            .withFailureHandler((err) => {
+              Swal.fire({
+                icon: "error",
+                title: "เกิดข้อผิดพลาด",
+                text: err.message,
+              });
+            })
+            .updateSlotInterview(data);
+        }
+      });
+    };
+
+    const handleClickAddSlot = (slotId, buName, startTime, endTime) => {
+      if (!user) {
+        onClickLogin();
+        return;
+      }
+
+      const params = new URLSearchParams();
+
+      if (slotId) params.append("slotId", slotId);
+      if (eventId) params.append("eventId", eventId);
+      if (eventJobType) params.append("eventJobType", eventJobType);
+      if (eventName) params.append("eventName", eventName);
+      if (buName) params.append("buName", buName);
+      if (date) {
+        const thaiDateStr = new Date(date).toLocaleString("th-TH", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+        params.append("date", thaiDateStr);
+      }
+      if (startTime && endTime)
+        params.append("time", `${startTime}-${endTime}`);
+
+      history.push({
+        pathname: "/interview/add",
+        search: params.toString(),
+      });
+
+      window.scrollTo(0, 0);
+    };
+    return (
+      <div className="xl:px-20">
+        {slots.length === 0 ? (
+          <div className="w-full flex justify-center text-gray-500 animate-fade-in">
+            <p className="text-lg">ไม่พบข้อมูลในช่วงเวลานี้</p>
+          </div>
+        ) : (
+          <div className="space-y-6 animate-fade-in">
+            <p className="text-gray-500 text-left">
+              ทั้งหมด: {slots.length} ช่วงเวลา
+            </p>
+            {slots.map((slot, index) => (
+              <div
+                key={`${slot.startTime}-${slot.endTime}`}
+                className="bg-base-100 border border-base-300 rounded-2xl shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden"
+              >
+                {/* --- Header Section --- */}
+                <div className="flex items-center justify-center sm:justify-between px-5 py-4 bg-base-200">
+                  {/* Left: Time Info */}
+                  <div className="flex flex-col items-center sm:items-start">
+                    <span className="block text-xs text-gray-500">
+                      ช่วงเวลาสัมภาษณ์
+                    </span>
+                    <span className="text-xl font-medium">
+                      {slot.startTime} - {slot.endTime}
+                    </span>
+
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <span>
+                        {slot.bu.length} ตัวเลือก | เลือกภูมิภาค/สาขาที่ต้องการ
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Right: CTA (Desktop Only) */}
+                  <div className="hidden sm:flex items-center gap-2 font-medium text-sm p-2 bg-emerald-600 text-white rounded-full">
+                    <span>เลือกภูมิภาค/สาขาที่ต้องการ</span>
+                    <i className="fa-solid fa-arrow-down"></i>
+                  </div>
+                </div>
+
+                {/* --- Body Section: BU Grid --- */}
+                <div className="p-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {slot.bu.map((bu, index) => {
+                      const isBooked = slotBookId === bu.slotId;
+
+                      return (
+                        <button
+                          key={bu.slotId}
+                          // Enable ทุกกรณี (เอา disabled condition ออก)
+                          onClick={() =>
+                            slotBookId
+                              ? handleClickEditSlot(bu.slotId)
+                              : handleClickAddSlot(
+                                  bu.slotId,
+                                  bu.name,
+                                  slot.startTime,
+                                  slot.endTime,
+                                )
+                          }
+                          className={`
+                            group relative flex items-center justify-between p-3 rounded-lg border text-left transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95
+                            ${
+                              isBooked
+                                ? "bg-yellow-50 border-2 border-yellow-400 shadow-md" // Style เมื่อจองแล้ว
+                                : "bg-base-100 border-2 border-base-300 hover:border-emerald-500 hover:bg-base-200" // Style ปกติ (ว่าง/ไม่ว่าง แสดงเหมือนกัน)
+                            }
+                          `}
+                        >
+                          {/* BU Name */}
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`font-medium ${
+                                  isBooked
+                                    ? "text-yellow-800"
+                                    : "text-emerald-600"
+                                }`}
+                              >
+                                {bu.name}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Status Indicator */}
+                          {isBooked ? (
+                            <span className="text-sm font-bold text-yellow-700 flex items-center gap-1">
+                              <i className="fas fa-check-circle"></i> จองแล้ว
+                            </span>
+                          ) : (
+                            // เอาส่วนแสดงจำนวนที่นั่งออก และแทนที่ด้วย Icon หรือปล่อยว่างเพื่อให้ดู Clean
+                            <span className="text-gray-400 group-hover:text-emerald-500 transition-colors">
+                              <i className="fa-solid fa-chevron-right"></i>
+                            </span>
+                          )}
+
+                          {/* Hover Effect Layer */}
+                          <div
+                            className={`absolute inset-0 rounded-lg ${
+                              isBooked
+                                ? "bg-yellow-300 opacity-0"
+                                : "bg-emerald-500 opacity-0 group-hover:opacity-5"
+                            } transition-opacity duration-200 pointer-events-none`}
+                          ></div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+</script>

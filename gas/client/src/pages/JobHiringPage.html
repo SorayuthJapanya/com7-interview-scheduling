@@ -1,0 +1,96 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+
+  const JobHiringPage = () => {
+    const [images, setImages] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const fetchImages = () => {
+      setIsLoading(true);
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res) {
+            setImages(res);
+            setIsLoading(false);
+          } else {
+            setImages([]);
+            setIsLoading(false);
+          }
+        })
+        .getAllJobHiringPosterUrl();
+    };
+
+    useEffect(() => {
+      fetchImages();
+    }, []);
+
+    const getDisplayUrl = (driveUrl) => {
+      if (!driveUrl) return "";
+      if (driveUrl.includes("drive.google.com/uc?export=view")) {
+        const idMatch = driveUrl.match(/id=([^&]+)/);
+        if (idMatch && idMatch[1]) {
+          return `https://drive.google.com/thumbnail?sz=w1000&id=${idMatch[1]}`;
+        }
+      }
+      return driveUrl;
+    };
+
+    const openInNewTab = (url) => {
+      window.open(url, "_blank", "noopener,noreferrer");
+    };
+
+    return (
+      <div className="w-full flex flex-col">
+        <div className="flex flex-col items-center py-20 bg-base-200 padding-container gap-4 sm:gap-8">
+          <Header
+            title="ตำแหน่งงานที่เปิดรับสมัคร"
+            subTitle="เลือกตำแหน่งที่เหมาะกับคุณ แล้วสมัครได้เลย!"
+          />
+        </div>
+
+        <div className="padding-container pt-10">
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in-up">
+              {[...Array(3)].map((_, i) => (
+                <div
+                  key={i}
+                  className="flex flex-col gap-4 w-full animate-pulse"
+                >
+                  <div className="skeleton h-48 w-full rounded-xl"></div>
+                  <div className="skeleton h-4 w-28"></div>
+                  <div className="skeleton h-4 w-full"></div>
+                  <div className="skeleton h-4 w-full"></div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-6 max-w-7xl xl:max-w-[1440px] mx-auto animate-fade-in-up">
+              <div
+                className={`grid gap-4 px-1 ${images.length === 1 ? "grid-cols-1" : images.length === 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3"}`}
+              >
+                {images.map((item, index) => (
+                  <div
+                    key={index}
+                    onClick={() => openInNewTab(item.Url)}
+                    className="group relative bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100"
+                  >
+                    {/* Image Container */}
+                    <div className="w-full overflow-hidden aspect-[7/10] bg-gray-100 relative">
+                      <img
+                        src={getDisplayUrl(item.Url)}
+                        alt={item.File_Name}
+                        className="w-full h-auto object-cover transform group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+</script>

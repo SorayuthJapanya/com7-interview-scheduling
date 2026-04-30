@@ -1,0 +1,163 @@
+<script type="text/babel">
+  const { useState } = React;
+
+  const rolesConfig = {
+    user: {
+      id: "candidate",
+      title: "ผู้สมัคร",
+      icon: "https://drive.google.com/thumbnail?id=1INCNKnZiGOhVipsjSy62m3EamgKdoDpn",
+      textColor: "text-emerald-700",
+    },
+    manager: {
+      id: "manager",
+      title: "ผู้สัมภาษณ์",
+      icon: "https://drive.google.com/thumbnail?id=1LxpMS-U8MB14QlofD7t9vlAPQQ7hTna0",
+      textColor: "text-amber-700",
+    },
+    admin: {
+      id: "admin",
+      title: "ผู้ดูแลระบบ",
+      icon: "https://drive.google.com/thumbnail?id=1hG1dL_kmHYrU_o0DKUIs8SkbTqIYT-qg",
+      textColor: "text-red-700",
+    },
+  };
+
+  const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
+    const [step, setStep] = useState("selection"); // 'selection' | 'form'
+    const [selectedRole, setSelectedRole] = useState(null);
+    const [selectedForgotPassword, setSelectedForgotPassword] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+      if (isOpen) {
+        setStep("selection");
+        setSelectedRole(null);
+      }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const handleRoleSelect = (roleKey) => {
+      setSelectedRole(roleKey);
+      setStep("form");
+    };
+
+    const handleBack = () => {
+      setStep("selection");
+      setSelectedRole(null);
+    };
+
+    return (
+      <div
+        onClick={onClose}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-5 transition-all"
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden animate-scale-up relative flex flex-col max-h-[90vh]"
+        >
+          <div className="flex items-center justify-between px-6 py-4 bg-white ">
+            <div className="flex items-center gap-3">
+              {step === "form" && (
+                <button
+                  onClick={handleBack}
+                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors cursor-pointer"
+                >
+                  <i className="fa-solid fa-arrow-left"></i>
+                </button>
+              )}
+              <h3 className="font-semibold text-lg sm:text-xl text-gray-800">
+                ระบบจองตารางสัมภาษณ์
+              </h3>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors cursor-pointer"
+            >
+              <i className="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+
+          {/* 4. Content Area (Scrollable) */}
+          <div
+            className={`px-6 pb-6 ${
+              isLoading ? "overflow-hidden" : "overflow-y-auto"
+            }`}
+          >
+            {step === "selection" && (
+              <div className="space-y-3 animate-fade-in">
+                <p className="text-gray-500 text-sm mb-4 text-start">
+                  กรุณาเลือกบทบาทของคุณเพื่อดำเนินการต่อ
+                </p>
+                {Object.values(rolesConfig).map((role) => (
+                  <div
+                    key={role.id}
+                    onClick={() => handleRoleSelect(role.id)}
+                    className={`flex items-center gap-4 p-4 rounded-xl border border-gray-200 cursor-pointer hover:shadow-md transition-all group bg-base-100 hover:bg-base-200`}
+                  >
+                    <img
+                      src={role.icon}
+                      alt={role.id}
+                      className="size-10 rounded-full"
+                    />
+                    <div className="flex-1">
+                      <h4 className={`font-semibold ${role.textColor}`}>
+                        {role.title}
+                      </h4>
+                      <p className="text-xs text-gray-500">
+                        คลิกเพื่อเข้าสู่ระบบ
+                      </p>
+                    </div>
+                    <i
+                      className={`fa-solid fa-chevron-right text-gray-300 group-hover:text-gray-500`}
+                    ></i>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {step === "form" &&
+              selectedRole === "candidate" &&
+              selectedForgotPassword === null && (
+                <CandidateAuthForm
+                  onClose={onClose}
+                  onLoginSuccess={onLoginSuccess}
+                  isLoading={isLoading}
+                  setIsLoading={setIsLoading}
+                  onClickForgotPassword={setSelectedForgotPassword}
+                />
+              )}
+            {step === "form" &&
+              selectedRole === "candidate" &&
+              selectedForgotPassword === "candidate" && (
+                <CandidateForgotPasswordForm
+                  setSelectedForgotPassword={setSelectedForgotPassword}
+                />
+              )}
+            {step === "form" &&
+              selectedRole === "manager" &&
+              selectedForgotPassword === null && (
+                <ManagerAuthForm
+                  onClose={onClose}
+                  onLoginSuccess={onLoginSuccess}
+                  isLoading={isLoading}
+                  setIsLoading={setIsLoading}
+                />
+              )}
+            {step === "form" &&
+              selectedRole === "admin" &&
+              selectedForgotPassword === null && (
+                <AdminLoginForm
+                  onClose={onClose}
+                  onLoginSuccess={onLoginSuccess}
+                  isLoading={isLoading}
+                  setIsLoading={setIsLoading}
+                />
+              )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+</script>

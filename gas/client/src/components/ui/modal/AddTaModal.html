@@ -1,0 +1,157 @@
+<script type="text/babel">
+  const { useState } = React;
+  const AddTaModal = ({ isOpen, onClose, onRefresh }) => {
+    if (!isOpen) return null;
+
+    const [formData, setFormData] = useState({
+      fullname: "",
+      username: "",
+      password: "",
+    });
+    const [isLoading, setIsLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+
+    const handleChange = (e) => {
+      const { name, value } = e.target;
+      setFormData({
+        ...formData,
+        [name]: value,
+      });
+    };
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      setIsLoading(true);
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success === true) {
+            onClose();
+            onRefresh();
+            Swal.fire({
+              icon: "success",
+              title: res.message,
+              timer: 2000,
+            });
+          } else {
+            Swal.fire({
+              icon: "error",
+              title: res.message,
+              timer: 2000,
+            });
+          }
+          setIsLoading(false);
+        })
+        .withFailureHandler((err) => {
+          Swal.fire({
+            icon: "error",
+            title: "เกิดข้อผิดพลาด",
+            text: err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ",
+            timer: 2000,
+          });
+          setIsLoading(false);
+        })
+        .registerAdmin(formData);
+    };
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+        {/* 1. Backdrop */}
+        <div
+          className="absolute inset-0 bg-black/60 transition-opacity"
+          onClick={onClose}
+        ></div>
+
+        {/* 2. Dialog */}
+        <div className="bg-white w-full max-w-md mx-auto rounded-lg shadow-lg z-50 overflow-y-auto animate-fade-in-up">
+          {/* Header */}
+          <div className="flex justify-between items-center p-4 border-b border-gray-200 rounded-t-lg">
+            <h2 className="text-lg font-medium">เพิ่มผู้ใช้งาน</h2>
+            <button
+              onClick={onClose}
+              className="btn btn-circle btn-ghost group"
+            >
+              <i className="fa-solid fa-xmark text-gray-500 group-hover:text-gray-700 duration-200"></i>
+            </button>
+          </div>
+
+          {/* Body */}
+          <form
+            onSubmit={handleSubmit}
+            className="w-full text-sm space-y-3 p-4"
+          >
+            {/* Fullname */}
+            <div className="flex flex-col gap-1">
+              <label htmlFor="fullname" className="flex gap-2">
+                ชื่อ-สกุล <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                className="w-full input focus-within:border-none"
+                id="fullname"
+                name="fullname"
+                onChange={handleChange}
+                placeholder="ชื่อ-สกุล"
+                required
+              />
+            </div>
+
+            {/* Username */}
+            <div className="flex flex-col gap-1">
+              <label htmlFor="username" className="flex gap-2 text-gray-500">
+                ชื่อผู้ใช้ (Username) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                className="w-full input focus-within:border-none"
+                id="username"
+                name="username"
+                onChange={handleChange}
+                placeholder="ชื่อผู้ใช้ (Username)"
+                required
+              />
+            </div>
+
+            {/* Password */}
+            <div className="relative flex flex-col gap-1">
+              <label htmlFor="password" className="flex gap-2 text-gray-500">
+                รหัสผ่าน{" "}
+                <span className="text-red-500">
+                  * (ความาวอย่างน้อย 6 ตัวอักษร)
+                </span>
+              </label>
+              <input
+                type={showPassword ? "text" : "password"}
+                className="w-full relative input focus-within:border-none"
+                id="password"
+                name="password"
+                onChange={handleChange}
+                placeholder="รหัสผ่าน"
+                required
+              />
+
+              <span
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute top-7 right-3 size-8 rounded-full hover:bg-base-300 cursor-pointer duration-200 active:scale-95 transform transition-all text-gray-600 flex items-center justify-center"
+              >
+                {showPassword ? (
+                  <i className="fa-solid fa-eye-slash"></i>
+                ) : (
+                  <i className="fa-solid fa-eye"></i>
+                )}
+              </span>
+            </div>
+
+            <button className="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 text-white cursor-pointer rounded-box duration-200 mt-1 text-base">
+              {isLoading ? (
+                <span className="loading loading-spinner loading-md"></span>
+              ) : (
+                "ลงทะเบียน"
+              )}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  };
+</script>

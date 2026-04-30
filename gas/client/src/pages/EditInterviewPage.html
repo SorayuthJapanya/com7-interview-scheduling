@@ -1,0 +1,812 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+  const { useLocation, useHistory } = ReactRouterDOM;
+  const EditInterviewPage = ({ user }) => {
+    const location = useLocation();
+    const history = useHistory();
+
+    const [formData, setFormData] = useState({});
+    const [isLoading, setIsLoading] = useState(false);
+    const [isSubmitLoading, setIsSubmitLoading] = useState(false);
+    const [rawLocationData, setRawLocationData] = useState([]); // All data stucture
+    const [provinceOptions, setProvinceOptions] = useState([]); // รายชื่อจังหวัด (String[])
+    const [districtOptions, setDistrictOptions] = useState([]); // รายชื่ออําเภอ (String[])
+    const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+    const [resume, setResume] = useState(null);
+    const [allowPDPA, setAllowPDPA] = useState(false);
+
+    const useQuery = new URLSearchParams(location.search);
+    const eventId = useQuery.get("eventId") || "";
+    const interviewId = useQuery.get("interviewId") || "";
+
+    const fetchInterviewData = () => {
+      setIsLoading(true);
+
+      const query = {
+        eventId,
+        interviewId,
+        candidateId: user && user.userId,
+        userRole: user && user.role,
+      };
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success === true) {
+            const data = res.data;
+
+            const formattedAvilableStartDate = formatDate(
+              data.Available_Start_Date,
+            );
+            const formattedBirthDate = formatDate(data.Birthdate);
+
+            let militaryStatusVal = "";
+            let militaryReasonVal = "";
+
+            if (data.Military_Status) {
+              if (data.Military_Status.includes(" เนื่องจาก: ")) {
+                const parts = data.Military_Status.split(" เนื่องจาก: ");
+                militaryStatusVal = parts[0];
+                militaryReasonVal = parts[1];
+              } else {
+                militaryStatusVal = data.Military_Status;
+              }
+            }
+
+            setFormData({
+              // IDs
+              eventId: eventId,
+              interviewId: interviewId,
+              candidateId: data.Candidate_Id,
+
+              // Job Section
+              positionType: data.Position_Type, // Map Position_Type -> positionType
+              positionApplied: data.Position_Applied,
+              preferredProvince: data.Preferred_Province,
+              preferredDistrict: data.Preferred_District,
+              expectedSalary: data.Expected_Salary,
+              availableStartDate: formattedAvilableStartDate,
+              resumeUrl: data.Resume_Url,
+
+              // Personal Info
+              fullname: data.Fullname,
+              nickname: data.Nickname,
+              gender: data.Gender,
+              birthdate: formattedBirthDate,
+              age: data.Age,
+              weight: data.Weight,
+              height: data.Height,
+              nationalId: data.National_Id,
+              nationality: data.Nationality,
+              maritalStatus: data.Marital_Status,
+              military: militaryStatusVal, // ค่าที่แยกแล้ว
+              militaryReason: militaryReasonVal, // ค่าที่แยกแล้ว
+              currentAddress: data.Current_Address,
+              phoneNumber: data.Phone_Number,
+              email: data.Email,
+              lineId: data.Line_Id,
+
+              // Education
+              highestEducation: data.Highest_Education,
+              institution: data.Institution,
+              faculty: data.Faculty,
+              major: data.Major,
+
+              // Work Experience
+              workLocation: data.Work_Location,
+              workPeriod: data.Work_Period,
+              workPosition: data.Work_Position,
+              workDescription: data.Work_Description,
+              saleExperience: data.Sales_Experience,
+            });
+          } else {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: res.message,
+              timer: 2000,
+            });
+          }
+          setIsLoading(false);
+        })
+        .withFailureHandler((err) => {
+          if (err) {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: err.message,
+              timer: 2000,
+            });
+          }
+          setIsLoading(false);
+        })
+        .getInterviewsById(query);
+    };
+
+    const fetchThaiLocation = async () => {
+      setIsLoadingLocation(true);
+
+      try {
+        const response = await fetch(
+          "https://raw.githubusercontent.com/kongvut/thai-province-data/refs/heads/master/api/latest/province_with_district_and_sub_district.json",
+        );
+        const data = await response.json();
+
+        const sortedData = data.sort((a, b) =>
+          a.name_th.localeCompare(b.name_th),
+        );
+
+        setRawLocationData(sortedData);
+
+        const provinces = sortedData.map((item) => item.name_th);
+        setProvinceOptions(provinces);
+      } catch (error) {
+        console.error("Failed to fetch location data:", error);
+      } finally {
+        setIsLoadingLocation(false);
+      }
+    };
+
+    const goBack = () => {
+      history.goBack();
+      window.scrollTo(0, 0);
+    };
+
+    const handleChange = (e) => {
+      const { name, value } = e.target;
+      setFormData((prev) => {
+        const newData = { ...prev, [name]: value };
+
+        if (name === "preferredProvince") {
+          newData.preferredDistrict = "";
+        }
+        return newData;
+      });
+    };
+
+    const handleDateChange = (field, value) => {
+      setFormData((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const readFileAsBase64 = (file) => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+      });
+    };
+
+    const formatDate = (date) => {
+      if (!date) return "-";
+      const d = new Date(date);
+      if (d.getFullYear() > 2400) d.setFullYear(d.getFullYear() - 543);
+      d.setDate(d.getDate() + 1);
+      return d.toISOString().split("T")[0];
+    };
+
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+
+      if (!allowPDPA) {
+        Swal.fire({
+          icon: "warning",
+          title: "กรุณายอมรับข้อตกลง",
+        });
+        return;
+      }
+
+      const max_size = 5 * 1024 * 1024; // 5MB
+
+      if (resume && resume.size > max_size) {
+        Swal.fire({
+          icon: "warning",
+          title: "ขนาดไฟล์ไม่เกิน 5MB",
+        });
+        return;
+      }
+
+      const result = await Swal.fire({
+        icon: "question",
+        title: "ยืนยันความถูกต้อง",
+        text: `คุณต้องการแก้ไขข้อมูลส่วนตัวใช่หรือไม่`,
+        showCancelButton: true,
+        confirmButtonText: "ใช่ แก้ไขเลย",
+        cancelButtonText: "ยกเลิก",
+      });
+
+      if (!result.isConfirmed) {
+        return;
+      }
+
+      Swal.fire({
+        title: "กำลังบันทึกการแก้ไข...",
+        text: "กรุณารอสักครู่",
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      try {
+        setIsSubmitLoading(true);
+        let filePayload = null;
+
+        if (resume) {
+          const base64Data = await readFileAsBase64(resume);
+          filePayload = {
+            base64Data,
+            fileName: resume.name,
+            mimeType: resume.type,
+          };
+        }
+        const payload = {
+          ...formData,
+          militaryStatus:
+            formData.military === "ได้รับการยกเว้น"
+              ? `${formData.military} เนื่องจาก: ${formData.militaryReason}`
+              : formData.military,
+          file: filePayload,
+          userRole: user && user.role,
+          userId: user && user.userId,
+          eventId,
+          interviewId,
+        };
+
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (res.success === true) {
+              history.push("/interview");
+              window.scrollTo(0, 0);
+              Swal.fire({
+                icon: "success",
+                title: res.message,
+                timer: 2000,
+              });
+              setIsSubmitLoading(false);
+            } else {
+              Swal.fire({
+                icon: "error",
+                title: res.message,
+                timer: 2000,
+              });
+              setIsSubmitLoading(false);
+            }
+            setIsSubmitLoading(false);
+          })
+          .withFailureHandler((err) => {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ",
+              timer: 2000,
+            });
+            setIsSubmitLoading(false);
+          })
+          .updateDetailInterview(payload);
+      } catch (error) {
+        Swal.fire({
+          icon: "error",
+          title: error.message || "แก้ไขไม่สําเร็จ",
+        });
+        setIsLoading(false);
+      }
+    };
+
+    useEffect(() => {
+      if (formData.birthdate) {
+        const birthDate = new Date(formData.birthdate);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+
+        setFormData((prev) => {
+          if (prev.age !== age) {
+            return { ...prev, age: age };
+          }
+          return prev;
+        });
+      }
+    }, [formData.birthdate]);
+
+    useEffect(() => {
+      if (formData.preferredProvince && rawLocationData.length > 0) {
+        const selectedProvince = rawLocationData.find(
+          (p) => p.name_th === formData.preferredProvince,
+        );
+
+        if (selectedProvince && selectedProvince.districts) {
+          const sortedDistricts = selectedProvince.districts.sort((a, b) =>
+            a.name_th.localeCompare(b.name_th),
+          );
+
+          // map เอาเฉพาะชื่ออำเภอ (name_th)
+          const districtNames = sortedDistricts.map((d) => d.name_th);
+          setDistrictOptions(districtNames);
+        } else {
+          setDistrictOptions([]);
+        }
+      } else {
+        setDistrictOptions([]);
+      }
+    }, [formData.preferredProvince, rawLocationData]);
+
+    useEffect(() => {
+      fetchInterviewData();
+      fetchThaiLocation();
+    }, []);
+
+    return (
+      <div className="min-h-screen bg-base-200 padding-container xl:px-20 pb-16">
+        <div className="max-w-6xl mx-auto animate-fade-in-up">
+          {/* Header */}
+          <div className="flex flex-col items-center sm:items-start gap-1 pt-16 pb-6">
+            <div className="space-y-1 text-center sm:text-left">
+              <h1 className="text-2xl sm:text-3xl ">แก้ไขข้อมูลผู้สมัคร</h1>
+              <p className="text-xs sm:text-sm text-gray-500 flex items-center">
+                * กรุณาตรวจสอบข้อมูลก่อนบันทึกเเพื่อใช้ในการพิจารณา
+              </p>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="w-full flex justify-center animate-fade-in-up">
+              <span className="loading loading-spinner loading-md"></span>
+            </div>
+          ) : (
+            <form
+              onSubmit={handleSubmit}
+              className="space-y-6 p-4 bg-base-300 rounded-xl animate-fade-in-up"
+            >
+              <FormSection
+                title="เลือกงานที่ต้องการจะสมัคร"
+                icon="fa-briefcase"
+              >
+                <InputField
+                  label="ประเภทตำแหน่งงานที่สมัคร"
+                  name="positionType"
+                  value={formData.positionType}
+                  onChange={handleChange}
+                  colSpan={2}
+                  readOnly
+                  required
+                />
+
+                <InputField
+                  label="ตำแหน่งที่สมัคร"
+                  name="positionApplied"
+                  value={formData.positionApplied}
+                  onChange={handleChange}
+                  placeholder="ตำแหน่งที่สมัคร"
+                  colSpan={2}
+                  required
+                />
+
+                {/* จังหวัด */}
+                <SearchableSelect
+                  label="จังหวัดที่สะดวกปฏิบัติงาน"
+                  name="preferredProvince"
+                  value={formData.preferredProvince || ""}
+                  onChange={handleChange}
+                  options={isLoadingLocation ? [] : provinceOptions}
+                  disabled={isLoadingLocation}
+                  required
+                />
+
+                {/* อำเภอ */}
+                <SearchableSelect
+                  label="อำเภอที่สะดวกปฏิบัติงาน"
+                  name="preferredDistrict"
+                  value={formData.preferredDistrict || ""}
+                  onChange={handleChange}
+                  options={districtOptions}
+                  disabled={isLoadingLocation || !formData.preferredProvince}
+                  required
+                />
+
+                <InputField
+                  label="เงินเดือนที่คาดหวัง"
+                  name="expectedSalary"
+                  type="number"
+                  value={formData.expectedSalary}
+                  onChange={handleChange}
+                  placeholder="เงินเดือนที่คาดหวัง"
+                  required
+                />
+
+                <div className="w-full">
+                  <label className="text-xs font-semibold text-gray-500 mb-1.5 ml-1 block">
+                    วันที่เริ่มงานได้
+                  </label>
+                  <FlatpickrInput
+                    value={formData.availableStartDate}
+                    onChange={(val) =>
+                      handleDateChange("availableStartDate", val)
+                    }
+                    icon={<i className="fa-regular fa-calendar"></i>}
+                    placeholder="เลือกวันที่"
+                    options={{ dateFormat: "Y-m-d" }}
+                    required
+                  />
+                </div>
+
+                <div className={`form-control w-full col-span-1 md:col-span-4`}>
+                  <label className="label">
+                    <span className="label-text font-medium">
+                      Resume{" "}
+                      <span className="text-error text-xs sm:text-sm">
+                        * ขนาดไฟล์ไม่เกิน 5MB (PDF เท่านั้น)
+                      </span>
+                    </span>
+                  </label>
+
+                  {/* file input */}
+                  <input
+                    type="file"
+                    name="resume"
+                    accept="application/pdf"
+                    onChange={(e) =>
+                      e.target.files[0] && setResume(e.target.files[0])
+                    }
+                    className="input input-bordered w-full file-input file-input-bordered p-0"
+                  />
+
+                  {/* show existing resume and open button */}
+                  {formData?.resumeUrl ? (
+                    <div className="mt-3 flex items-center justify-center sm:justify-between">
+                      <div className="hidden sm:inline-flex items-center gap-2 text-sm text-emerald-600">
+                        <i className="fa-solid fa-file"></i>
+                        <span className="font-medium">ไฟล์แนบ: มี Resume</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          window.open(
+                            formData.resumeUrl,
+                            "_blank",
+                            "noopener,noreferrer",
+                          );
+                        }}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium cursor-pointer duration-200"
+                        aria-label="เปิด Resume ในแท็บใหม่"
+                        title="เปิด Resume"
+                      >
+                        <i className="fa-solid fa-arrow-up-right-from-square text-sm"></i>
+                        เปิด Resume
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-3 text-sm text-gray-500">
+                      ไฟล์ Resume: ยังไม่มีไฟล์แนบ
+                    </div>
+                  )}
+                </div>
+              </FormSection>
+
+              {/* 1. ข้อมูลส่วนตัว (Personal Info) */}
+              <FormSection title="ข้อมูลส่วนตัว" icon="fa-user">
+                <InputField
+                  label="ชื่อ-นามสกุล"
+                  name="fullname"
+                  value={formData.fullname}
+                  onChange={handleChange}
+                  colSpan={2}
+                  required
+                  readOnly
+                />
+
+                <InputField
+                  label="ชื่อเล่น"
+                  name="nickname"
+                  value={formData.nickname}
+                  onChange={handleChange}
+                  placeholder="ชื่อเล่น"
+                  required
+                />
+
+                <SelectField
+                  label="เพศ"
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleChange}
+                  options={["ชาย", "หญิง", "ไม่ระบุเพศ"]}
+                  required
+                />
+
+                <div className="w-full">
+                  <label className="text-xs font-semibold text-gray-500 mb-1.5 ml-1 block">
+                    วันเกิด
+                  </label>
+                  <FlatpickrInput
+                    value={formData.birthdate}
+                    onChange={(val) => handleDateChange("birthdate", val)}
+                    icon={<i className="fa-regular fa-calendar"></i>}
+                    placeholder="เลือกวันที่"
+                    options={{ dateFormat: "Y-m-d" }}
+                    required
+                  />
+                </div>
+
+                <InputField
+                  label="อายุ (ปี)"
+                  name="age"
+                  type="number"
+                  value={formData.age}
+                  onChange={handleChange}
+                  readOnly
+                  required
+                />
+
+                <InputField
+                  label="น้ำหนัก (กก.)"
+                  name="weight"
+                  type="number"
+                  value={formData.weight}
+                  onChange={handleChange}
+                  placeholder="น้ำหนัก (กก.)"
+                  required
+                />
+
+                <InputField
+                  label="ส่วนสูง (ซม.)"
+                  name="height"
+                  type="number"
+                  value={formData.height}
+                  onChange={handleChange}
+                  placeholder="ส่วนสูง (ซม.)"
+                  required
+                />
+
+                <InputField
+                  label="เลขบัตรประชาชน"
+                  name="nationalId"
+                  value={formData.nationalId}
+                  onChange={handleChange}
+                  placeholder="1509911264926"
+                  required
+                />
+
+                <InputField
+                  label="สัญชาติ"
+                  name="nationality"
+                  value={formData.nationality}
+                  onChange={handleChange}
+                  placeholder="สัญชาติ"
+                  required
+                />
+
+                <SelectField
+                  label="สถานภาพ"
+                  name="maritalStatus"
+                  value={formData.maritalStatus}
+                  onChange={handleChange}
+                  options={["โสด", "สมรส", "หม้าย", "หย่าร้าง", "แยกกันอยู่"]}
+                  required
+                />
+
+                <SelectField
+                  label="สถานะทางทหาร"
+                  name="military"
+                  value={formData.military}
+                  onChange={handleChange}
+                  options={[
+                    "ผ่านการเกณฑ์ทหารแล้ว",
+                    "ได้รับการยกเว้น",
+                    "ยังไม่ได้เกณฑ์",
+                  ]}
+                  required
+                />
+
+                {formData.military === "ได้รับการยกเว้น" && (
+                  <InputField
+                    label="ระบุสาเหตุ (เนื่องจาก)"
+                    name="militaryReason"
+                    value={formData.militaryReason}
+                    onChange={handleChange}
+                    placeholder="เช่น จับได้ใบดำ, ร่างกายไม่สมบูรณ์"
+                    required
+                  />
+                )}
+
+                <InputField
+                  label="ที่อยู่ปัจจุบัน"
+                  name="currentAddress"
+                  placeholder="(ตย. 45/1 ซอยนิมมานเหมินท์ ต.สุเทพ อ.เมือง เชียงใหม่ 50200)"
+                  value={formData.currentAddress}
+                  onChange={handleChange}
+                  colSpan={formData.military === "ได้รับการยกเว้น" ? 3 : 4}
+                  required
+                />
+
+                <InputField
+                  label="เบอร์โทรศัพท์"
+                  name="phoneNumber"
+                  value={formData.phoneNumber}
+                  onChange={handleChange}
+                  readOnly
+                  required
+                />
+
+                <InputField
+                  label="อีเมล"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  colSpan={2}
+                  readOnly
+                  required
+                />
+
+                <InputField
+                  label="Line ID"
+                  name="lineId"
+                  value={formData.lineId}
+                  onChange={handleChange}
+                  placeholder="Line ID"
+                  required
+                />
+              </FormSection>
+
+              {/* 2. ประวัติการศึกษา (Education) */}
+              <FormSection
+                title="ประวัติการศึกษาสูงสุด"
+                icon="fa-graduation-cap"
+              >
+                <SelectField
+                  label="ระดับการศึกษาสูงสุด"
+                  name="highestEducation"
+                  value={formData.highestEducation}
+                  onChange={handleChange}
+                  options={[
+                    "มัธยมศึกษาตอนต้น",
+                    "มัธยมศึกษาตอนปลาย",
+                    "ปวช.",
+                    "ปวส.",
+                    "ปริญญาตรี",
+                    "สูงกว่าปริญาตรี",
+                  ]}
+                  required
+                />
+
+                <InputField
+                  label="สถาบันการศึกษา"
+                  name="institution"
+                  value={formData.institution}
+                  onChange={handleChange}
+                  colSpan={3}
+                  placeholder="สถาบันการศึกษา"
+                  required
+                />
+
+                <InputField
+                  label="คณะ"
+                  name="faculty"
+                  value={formData.faculty}
+                  onChange={handleChange}
+                  colSpan={2}
+                  placeholder="คณะ"
+                  required
+                />
+
+                <InputField
+                  label="สาขาวิชา"
+                  name="major"
+                  value={formData.major}
+                  onChange={handleChange}
+                  placeholder="สาขาวิชา"
+                  colSpan={2}
+                  required
+                />
+              </FormSection>
+
+              {/* 3. ประสบการณ์การทำงาน (Work Experience) */}
+              <FormSection title="ประวัติการทำงานล่าสุด" icon="fa-briefcase">
+                <InputField
+                  label="สถานที่ทำงาน"
+                  name="workLocation"
+                  value={formData.workLocation}
+                  placeholder="สถานที่ทำงาน"
+                  colSpan={2}
+                  onChange={handleChange}
+                  required
+                />
+
+                <InputField
+                  label="ระยะเวลาที่ทำงาน (ตย. 1 ปี 3 เดือน)"
+                  name="workPeriod"
+                  value={formData.workPeriod}
+                  placeholder="เช่น 1 ปี 3 เดือน"
+                  onChange={handleChange}
+                  required
+                />
+
+                <InputField
+                  label="ตำแหน่ง"
+                  name="workPosition"
+                  value={formData.workPosition}
+                  placeholder="ตำแหน่ง"
+                  onChange={handleChange}
+                  required
+                />
+
+                <InputField
+                  label="รายละเอียดงาน"
+                  name="workDescription"
+                  value={formData.workDescription}
+                  placeholder="รายละเอียดงาน"
+                  colSpan={3}
+                  onChange={handleChange}
+                  required
+                />
+
+                <InputField
+                  label="ประสบการณ์ด้านการขาย (ปี)"
+                  name="saleExperience"
+                  type="number"
+                  value={formData.saleExperience}
+                  onChange={handleChange}
+                  required
+                />
+              </FormSection>
+
+              {/* PDPA */}
+              <div className="w-full bg-base-100 border border-base-300 p-6 flex justify-start gap-2 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="allowPDPA"
+                  checked={allowPDPA}
+                  onChange={(e) => setAllowPDPA(e.target.checked)}
+                  className="checkbox checkbox-sm checkbox-success rounded-sm"
+                />
+                <label htmlFor="allowPDPA" className="text-sm cursor-pointer">
+                  ข้าพเจ้าให้ความยินยอมหรือปฏิเสธไม่ให้ความยินยอมรวบรวม เก็บ
+                  ประมวลผลและเปิดเผยในข้อมูลส่วนบุคคลของข้าพเจ้าด้วยความสมัครใจ
+                  ปราศจากการบังคับหรือชักจูง
+                  และข้าพเจ้าทราบว่าข้าพเจ้าสามารถถอนความยินยอมนี้เสียเมื่อใดก็ได้
+                  เว้นแต่ในกรณี
+                  มีข้อจำกัดสิทธิตามกฎหมายหรือยังมีสัญญาระหว่างข้าพเจ้ากับบริษัทดังกล่าวที่ให้ประโยชน์แก่ข้าพเจ้าอยู่
+                </label>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-center gap-4 mt-8">
+                <button
+                  type="button"
+                  className="btn btn-ghost text-gray-500 font-medium rounded-lg"
+                  onClick={() => {
+                    history.goBack();
+                    window.scrollTo(0, 0);
+                  }}
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitLoading}
+                  className="btn bg-emerald-600 font-medium rounded-lg text-white shadow-lg hover:scale-105 transition-transform"
+                >
+                  {isSubmitLoading ? (
+                    <>
+                      <span className="loading loading-spinner loading-sm text-white"></span>
+                      กําลังบันทึก...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-save mr-2"></i> บันทึกข้อมูล
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  };
+</script>

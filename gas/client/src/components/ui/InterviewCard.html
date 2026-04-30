@@ -1,0 +1,506 @@
+<script type="text/babel">
+  const { useHistory } = ReactRouterDOM;
+  const InterviewCard = ({
+    interview,
+    user,
+    onClick,
+    interviewId,
+    onFetching,
+  }) => {
+    const history = useHistory();
+
+    const formatDate = (dateString) => {
+      if (!dateString) return "-";
+
+      try {
+        const parts = dateString.split("/");
+        if (parts.length !== 3) return dateString;
+
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        let year = parseInt(parts[2], 10);
+
+        if (year > 2400) {
+          year -= 543;
+        }
+
+        const date = new Date(year, month, day);
+
+        if (isNaN(date.getTime())) return "-";
+
+        return date.toLocaleDateString("th-TH", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+      } catch (e) {
+        return "-";
+      }
+    };
+
+    const formatTime = (timeString) => {
+      if (!timeString) return "-";
+      const [hour, minute] = timeString.split(":");
+
+      const formattedHour = hour.padStart(2, "0");
+      const formattedMinute = (minute || "00").padStart(2, "0");
+
+      return `${formattedHour}:${formattedMinute} น.`;
+    };
+
+    const normalizeDate = (date) => {
+      if (!date) return null;
+      const [day, month, year] = date.split("/").map(Number);
+      const normalizedYear = year > 2400 ? year - 543 : year;
+      return new Date(normalizedYear, month - 1, day + 1);
+    };
+
+    const formatDateForInput = (dateObj) => {
+      if (!dateObj || isNaN(dateObj)) return "";
+      if (dateObj.getFullYear() > 2400)
+        dateObj.setFullYear(dateObj.getFullYear() - 543);
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+      const day = String(dateObj.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    const getStatusStyle = (status) => {
+      switch (status) {
+        case "รอการพิจารณา":
+          return "bg-yellow-100 text-yellow-700 border-yellow-200";
+        case "ผ่าน":
+          return "bg-green-100 text-green-700 border-green-200";
+        case "ไม่ผ่าน":
+          return "bg-red-100 text-red-700 border-red-200";
+        case "ไม่ผ่านการพิจารณา":
+          return "bg-red-100 text-red-700 border-red-200";
+        case "เก็บไว้พิจารณา":
+          return "bg-gray-100 text-gray-700 border-gray-200";
+        default:
+          return "bg-yellow-100 text-yellow-700 border-yellow-200";
+      }
+    };
+
+    const {
+      Fullname,
+      Nickname,
+      Position_Applied,
+      Position_Type,
+      Preferred_Province,
+      Preferred_District,
+      Available_Start_Date,
+      Status,
+      Email,
+      Phone_Number,
+      Line_Id,
+      Current_Address,
+      Highest_Education,
+      Institution,
+      Faculty,
+      Major,
+      Work_Location,
+      Work_Period,
+      Work_Position,
+      Work_Description,
+      Expected_Salary,
+      Resume_Url,
+      eventDetail,
+      slotDetail,
+      Interview_Date,
+      Interview_Link,
+    } = interview;
+
+    // prefer status
+    const closingDate = new Date(normalizeDate(eventDetail.Closing_At));
+    const expiryDate = new Date(
+      closingDate.getTime() + 2 * 24 * 60 * 60 * 1000,
+    );
+    const isExpired = new Date() > expiryDate;
+
+    const handleClickEditProfile = () => {
+      const eventId = eventDetail.Sheet_ID;
+
+      const params = new URLSearchParams();
+
+      if (interviewId) params.append("interviewId", interviewId);
+      if (eventId) params.append("eventId", eventId);
+
+      history.push({
+        pathname: "/interview/edit",
+        search: params.toString(),
+      });
+      window.scrollTo(0, 0);
+    };
+
+    const handleClickReSchedule = () => {
+      const eventId = eventDetail.Sheet_ID;
+      const slotId = slotDetail.Slot_Id;
+      const eventName = eventDetail.Event_Name;
+      const eventLocation = eventDetail.Location;
+      const eventType = eventDetail.Event_Type;
+
+      console.log(Interview_Date);
+
+      const dateQuery = normalizeDate(Interview_Date)
+        .toISOString()
+        .split("T")[0];
+
+      const params = new URLSearchParams();
+
+      if (dateQuery) params.append("dateQuery", dateQuery);
+      if (eventId) params.append("eventId", eventId);
+      if (slotId) params.append("slotId", slotId);
+      if (interviewId) params.append("interviewId", interviewId);
+      if (eventName) params.append("eventName", eventName);
+      if (eventLocation) params.append("eventLocation", eventLocation);
+      if (eventType) params.append("eventType", eventType);
+
+      history.push({
+        pathname: "/events/slots/edit",
+        search: params.toString(),
+      });
+      window.scrollTo(0, 0);
+    };
+
+    const handleDeleteInterview = () => {
+      const eventId = eventDetail.Sheet_ID;
+      const userName = user.name;
+      const userRole = user.role;
+      const userId = user.userId;
+
+      Swal.fire({
+        title: "คุณแน่ใจใช่ไหมว่าต้องการยกเลิกการนัดหมาย?",
+        text: "โปรดระบุสาเหตุที่ต้องการยกเลิก",
+        icon: "warning",
+        input: "textarea",
+        inputPlaceholder: "ระบุเหตุผลในการยกเลิกที่นี่...",
+        inputAttributes: {
+          "aria-label": "ระบุเหตุผลในการยกเลิก",
+        },
+        showCancelButton: true,
+        cancelButtonText: "ไม่, เปลี่ยนใจแล้ว",
+        confirmButtonText: "ยืนยัน",
+        showLoaderOnConfirm: true,
+
+        inputValidator: (value) => {
+          if (!value) {
+            return "กรุณาระบุเหตุผลในการยกเลิก";
+          }
+        },
+
+        preConfirm: (inputValue) => {
+          const description = inputValue;
+
+          const payload = {
+            userRole,
+            userName,
+            userId,
+            eventId,
+            interviewIds: Array.from([interviewId]),
+            description,
+          };
+
+          return new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler((res) => {
+                if (res.success) {
+                  resolve(res); // resoponse data to then
+                } else {
+                  Swal.showValidationMessage(
+                    res.message || "เกิดข้อผิดพลาดจากเซิร์ฟเวอร์",
+                  );
+                  resolve(false);
+                }
+              })
+              .withFailureHandler((err) => {
+                Swal.showValidationMessage(`เกิดข้อผิดพลาด: ${err.message}`);
+                resolve(false);
+              })
+              .deleteInterview(payload);
+          });
+        },
+      }).then((result) => {
+        if (result.isConfirmed && result.value) {
+          Swal.fire({
+            icon: "success",
+            title: "ยกเลิกการนัดหมายสำเร็จ",
+            text: result.value.message,
+            timer: 2000,
+            showConfirmButton: false,
+          }).then(() => {
+            onFetching();
+          });
+        }
+      });
+    };
+
+    return (
+      <div
+        onClick={onClick}
+        className="relative w-full bg-base-100 border border-base-300 rounded-xl shadow-sm hover:shadow-lg cursor-pointer transition-all duration-300 overflow-hidden mb-6"
+      >
+        {/* --- HEADER ส่วนหัว --- */}
+        <div className="p-5 border-b border-base-300 bg-base-200 flex flex-col items-start gap-2">
+          <div className="w-full flex flex-col md:flex-row items-start md:items-center md:justify-between gap-4">
+            <h3 className="text-xl font-medium">
+              {eventDetail.Event_Name} - {interview.Bu_Name}
+            </h3>
+
+            <span
+              className={`px-3 py-1 sm:px-4 sm:py-1 rounded-full text-xs sm:text-sm font-semibold border ${
+                isExpired
+                  ? getStatusStyle(Status)
+                  : getStatusStyle("รอการพิจารณา")
+              }`}
+            >
+              {isExpired ? Status : "รอการพิจารณา"}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2 text-sm text-gray-600">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                <i className="fa-regular fa-calendar-days"></i>
+              </div>
+              <span className="font-medium">
+                {formatDate(slotDetail?.Date)}
+              </span>
+            </div>
+
+            {/* เวลา */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 flex items-center justify-center rounded-full bg-orange-50 text-orange-600">
+                <i className="fa-regular fa-clock"></i>
+              </div>
+              <span className="font-medium">
+                {formatTime(slotDetail?.Start_Time)} -{" "}
+                {formatTime(slotDetail?.End_Time)}
+              </span>
+            </div>
+
+            {/* สถานที่ (ถ้ามี) */}
+            {eventDetail?.Location && (
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-600">
+                  <i className="fa-solid fa-map-location-dot"></i>
+                </div>
+                <span>{eventDetail.Location}</span>
+              </div>
+            )}
+          </div>
+
+          {Interview_Link && !isExpired && (
+            <a
+              href={Interview_Link}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="group inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg shadow-sm transition-all duration-200 transform active:scale-95"
+            >
+              {/* Icon กล้องวิดีโอ สื่อถึงการประชุม */}
+              <i className="fa-solid fa-video text-lg"></i>
+              <span className="font-medium text-sm sm:text-base">
+                เข้าห้องสัมภาษณ์
+              </span>
+            </a>
+          )}
+        </div>
+
+        {/* --- BODY เนื้อหา --- */}
+        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          {/* Col 1: ข้อมูลผู้สมัคร */}
+          <div className="hidden sm:block space-y-4">
+            <h4 className="text-sm text-gray-500 tracking-wider mb-2">
+              ข้อมูลผู้สมัคร
+            </h4>
+
+            {/* Contact Info Group */}
+            <div className="space-y-2">
+              <InfoCardRow
+                iconClass="fa fa-address-book"
+                label="ชื่อ-สกุล"
+                value={Fullname}
+              />
+              <InfoCardRow
+                iconClass="fa fa-user"
+                label="ชื่อเล่น"
+                value={Nickname}
+              />
+              <InfoCardRow
+                iconClass="fa fa-phone"
+                label="เบอร์โทรศัพท์"
+                value={Phone_Number}
+              />
+              <InfoCardRow
+                iconClass="fa fa-envelope"
+                label="อีเมล"
+                value={Email}
+              />
+              <InfoCardRow
+                iconClass="fa fa-location-dot"
+                label="ที่อยู่ปัจจุบัน"
+                value={Current_Address}
+              />
+            </div>
+          </div>
+
+          <div className="hidden sm:block space-y-4">
+            <h4 className="text-sm text-gray-500 tracking-wider mb-2">
+              รายละเอียดงานที่สมัคร
+            </h4>
+
+            {/* Education & Work Group */}
+            <div className="space-y-2">
+              <InfoCardRow
+                iconClass="fa fa-user-clock"
+                label="ประเภทงาน"
+                value={Position_Type}
+              />
+              <InfoCardRow
+                iconClass="fa fa-briefcase"
+                label="ตำแหน่งงานที่สมัคร"
+                value={Position_Applied}
+              />
+              <InfoCardRow
+                iconClass="fa fa-building"
+                label="จังหวัดและอำเภอ"
+                value={`${Preferred_Province} / ${Preferred_District}`}
+              />
+              <InfoCardRow
+                iconClass="fa fa-money-bill-wave"
+                label="เงินเดือนที่ต้องการ"
+                value={`${Number(Expected_Salary).toLocaleString()} บาท`}
+              />
+              <InfoCardRow
+                iconClass="fa fa-calendar-day"
+                label="วันเริ่มงาน"
+                value={formatDate(Available_Start_Date)}
+              />
+            </div>
+          </div>
+
+          <div className="hidden sm:block space-y-4">
+            <h4 className="text-sm text-gray-500 tracking-wider mb-2">
+              ประสบการณ์การทำงานล่าสุด
+            </h4>
+
+            <div className="space-y-1 sm:space-y-3">
+              <InfoCardRow
+                iconClass="fa fa-map-marker-alt"
+                label="สถานที่ทํางาน"
+                value={Work_Location}
+              />
+
+              <InfoCardRow
+                iconClass="fa fa-calendar-alt"
+                label="ระยะเวลา"
+                value={Work_Period}
+              />
+
+              <InfoCardRow
+                iconClass="fa fa-user-tie"
+                label="ตําแหน่ง"
+                value={Work_Position}
+              />
+
+              <InfoCardRow
+                iconClass="fa fa-tasks"
+                label="รายละเอียดงาน"
+                value={Work_Description}
+              />
+            </div>
+          </div>
+
+          {/* For mobile */}
+          <div className="sm:hidden space-y-2">
+            <h4 className="text-sm text-gray-500 tracking-wider mb-2">
+              รายละเอียดงานที่สมัคร
+            </h4>
+            <InfoCardRow
+              iconClass="fa fa-user-clock"
+              label="ประเภทงาน"
+              value={Position_Type}
+            />
+            <InfoCardRow
+              iconClass="fa fa-briefcase"
+              label="ตำแหน่งงานที่สมัคร"
+              value={Position_Applied}
+            />
+            <InfoCardRow
+              iconClass="fa fa-building"
+              label="จังหวัดและอำเภอ"
+              value={`${Preferred_Province} / ${Preferred_District}`}
+            />
+            <InfoCardRow
+              iconClass="fa fa-money-bill-wave"
+              label="เงินเดือนที่ต้องการ"
+              value={`${Number(Expected_Salary).toLocaleString()} บาท`}
+            />
+            <InfoCardRow
+              iconClass="fa fa-calendar-day"
+              label="วันเริ่มงาน"
+              value={formatDate(Available_Start_Date)}
+            />
+          </div>
+        </div>
+
+        {/* --- FOOTER: Actions --- */}
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="p-4 bg-base-200 border-t border-base-300 flex flex-row justify-center sm:justify-end gap-3"
+        >
+          <button
+            onClick={handleDeleteInterview}
+            className="w-full sm:w-auto justify-center inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50/50 border border-red-200 hover:bg-red-100 hover:border-red-300 rounded-lg transition-colors duration-200 cursor-pointer"
+          >
+            <i className="fa-solid fa-trash-can"></i>
+            <p className="hidden sm:block">ยกเลิกนัดหมาย</p>
+          </button>
+          <button
+            onClick={handleClickReSchedule}
+            className="w-full sm:w-auto justify-center inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-600 bg-amber-50/50 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 rounded-lg transition-colors duration-200 cursor-pointer"
+          >
+            <i className="fa fa-calendar-alt"></i>
+            <p className="hidden sm:block">เปลี่ยนเวลานัดหมาย</p>
+          </button>
+
+          <button
+            onClick={handleClickEditProfile}
+            className="w-full sm:w-auto justify-center inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50/50 border border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300 rounded-lg transition-colors duration-200 cursor-pointer"
+          >
+            <i className="fa fa-user-edit"></i>
+            <p className="hidden sm:block">แก้ไขข้อมูลส่วนตัว</p>
+          </button>
+
+          <a
+            href={Resume_Url}
+            target="_blank"
+            rel="noreferrer"
+            className="w-full sm:w-auto justify-center inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-emerald-600 bg-emerald-50/50 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 rounded-lg transition-colors duration-200 cursor-pointer"
+          >
+            <i className="fa fa-file-pdf text-lg"></i>
+            <p className="hidden sm:block">Resume</p>
+          </a>
+        </div>
+      </div>
+    );
+  };
+
+  const InfoCardRow = ({ iconClass, label, value, isLong }) => (
+    <div
+      className={`flex ${
+        isLong ? "items-start" : "items-center"
+      } gap-3 text-sm group hover:bg-base-300 p-1.5 rounded-lg transition-colors`}
+    >
+      <div className="text-gray-400 group-hover:text-emerald-500 transition-colors shrink-0 mt-0.5 w-6 text-center">
+        <i className={`${iconClass}`}></i>
+      </div>
+      <div className="flex-1 overflow-hidden">
+        <span className="text-gray-500 text-xs block mb-0.5">{label}</span>
+        <span className="text-gray-900 font-medium break-words block">
+          {value || "-"}
+        </span>
+      </div>
+    </div>
+  );
+</script>

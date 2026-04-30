@@ -1,0 +1,99 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+
+  const EventsPage = ({ user }) => {
+    const [events, setEvents] = useState([]);
+    const [search, setSearch] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+
+    const fetchEvents = () => {
+      setIsLoading(true);
+
+      const query = { search };
+      const userRole = user ? user.role : "USER";
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success === true) {
+            setEvents(res.data);
+          }
+          setIsLoading(false);
+        })
+        .withFailureHandler((err) => {
+          if (err) {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: err.message,
+              timer: 2000,
+            });
+          }
+          setIsLoading(false);
+        })
+        .getEventsData(query, userRole);
+    };
+
+    const handleSearch = (e) => {
+      e.preventDefault();
+      fetchEvents();
+    };
+
+    useEffect(() => {
+      if (search === "") {
+        fetchEvents();
+      }
+    }, [search]);
+
+    return (
+      <div className="w-full flex flex-col">
+        <div className="flex flex-col items-center py-20 bg-base-200 padding-container gap-4 sm:gap-8">
+          <Header
+            title="ร่วมสร้างประสบการณ์ใหม่กับพวกเรา"
+            subTitle="ค้นหาอีเวนต์และจองเวลาสัมภาษณ์ที่คุณสนใจได้ง่ายๆ เพียงไม่กี่คลิก"
+          />
+          <form
+            className="w-full flex justify-center animate-fade-in-up"
+            onSubmit={handleSearch}
+          >
+            <label
+              htmlFor="search"
+              className="w-full max-w-140 input input-md rounded-full outline-none border-none h-12 px-6 focus-within:ring-0 focus-within:outline-none focus-within:border-none shadow-sm"
+            >
+              <i className="fa-solid fa-magnifying-glass text-sm text-gray-400"></i>
+              <input
+                type="text"
+                id="search"
+                name="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="input input-md border-none outline-none focus-within:ring-0 bg-transparent text-gray-600 "
+                placeholder="ค้นหาด้วยชื่ออีเวนต์"
+              />
+              <i className="fa-solid fa-filter text-sm text-gray-400"></i>
+            </label>
+            <button type="submit" className="hidden"></button>
+          </form>
+        </div>
+        <div className="padding-container pt-10">
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in-up">
+              {[...Array(3)].map((_, i) => (
+                <div
+                  key={i}
+                  className="flex flex-col gap-4 w-full animate-pulse"
+                >
+                  <div className="skeleton h-48 w-full rounded-xl"></div>
+                  <div className="skeleton h-4 w-28"></div>
+                  <div className="skeleton h-4 w-full"></div>
+                  <div className="skeleton h-4 w-full"></div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EventList events={events} />
+          )}
+        </div>
+      </div>
+    );
+  };
+</script>

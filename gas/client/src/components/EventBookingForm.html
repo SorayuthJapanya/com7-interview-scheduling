@@ -1,0 +1,318 @@
+<script type="text/babel">
+  const { useState, useEffect, useMemo } = React;
+  const { useHistory } = ReactRouterDOM;
+
+  const parseThaiDate = (dateStr) => {
+    if (!dateStr) return null;
+    const parts = dateStr.split("/");
+    if (parts.length !== 3) return null;
+
+    const [day, month, thaiYear] = parts;
+    const gregorianYear = parseInt(thaiYear, 10) - 543;
+    const m = parseInt(month, 10) - 1;
+    const d = parseInt(day, 10);
+
+    const date = new Date(gregorianYear, m, d);
+
+    if (isNaN(date.getTime())) return null;
+
+    return date;
+  };
+
+  // --- Helper: Convert JS Date back to "17/2/2569" (for matching data) ---
+  const formatToThaiDate = (dateObj) => {
+    if (!dateObj) return "";
+    const d = new Date(dateObj);
+    const day = d.getDate(); // 17
+    const month = d.getMonth() + 1; // 2
+    const thaiYear = d.getFullYear() + 543; // 2569
+    return `${day}/${month}/${thaiYear}`;
+  };
+
+  const EventBookingForm = ({ events = [], isLoading, user, onClickLogin }) => {
+    const [selectedEventId, setSelectedEventId] = useState("");
+    const [selectJobType, setSelectJobType] = useState("");
+    const [selectedBuName, setSelectedBuName] = useState("");
+    const [selectedDate, setSelectedDate] = useState("");
+    const [flatpickrDate, setFlatpickrDate] = useState(null);
+    const [selectedSlotId, setSelectedSlotId] = useState("");
+    const history = useHistory();
+
+    // --- Derived Memorize Data ---
+
+    // Current Event
+    const currentEvent = useMemo(
+      () => events.find((event) => event.eventId === selectedEventId),
+      [events, selectedEventId],
+    );
+
+    useEffect(() => {
+      if (currentEvent?.eventJobType) {
+        setSelectJobType(currentEvent.eventJobType);
+      } else {
+        setSelectJobType("");
+      }
+    }, [currentEvent]);
+
+    // Available BU Names
+    const availableBuNames = useMemo(() => {
+      if (!currentEvent) return [];
+
+      const buSet = new Set();
+      currentEvent.slots.forEach((slot) => {
+        slot.bus.forEach((bu) => {
+          if (bu.buName) {
+            buSet.add(bu.buName.trim());
+          }
+        });
+      });
+
+      return Array.from(buSet).sort();
+    }, [currentEvent]);
+
+    // Available Dates
+    const availableDates = useMemo(() => {
+      if (!currentEvent || !selectedBuName) return [];
+
+      const validSlots = currentEvent.slots.filter((slot) =>
+        slot.bus.some((bu) => bu.buName === selectedBuName),
+      );
+
+      const datesSet = new Set();
+      validSlots.forEach((slot) => {
+        datesSet.add(slot.date);
+      });
+
+      return Array.from(datesSet).sort();
+    }, [currentEvent, selectedBuName]);
+
+    // Date Config - คำนวณ min/max
+    const dateConfig = useMemo(() => {
+      if (!availableDates || availableDates.length === 0)
+        return { min: null, max: null, enable: [] };
+
+      const dateObjs = availableDates
+        .map((date) => parseThaiDate(date))
+        .filter((d) => d !== null);
+
+      if (dateObjs.length === 0) return { min: null, max: null, enable: [] };
+
+      dateObjs.sort((a, b) => a - b);
+
+      return {
+        min: dateObjs[0],
+        max: dateObjs[dateObjs.length - 1],
+        enable: dateObjs,
+      };
+    }, [availableDates]);
+
+    // Available Times
+    const availableTimes = useMemo(() => {
+      if (!currentEvent || !selectedBuName || !selectedDate) return [];
+
+      return currentEvent.slots.filter((slot) => {
+        const isDateMatch = slot.date === selectedDate;
+        const hasBuMatch = slot.bus.some((bu) => bu.buName === selectedBuName);
+        return isDateMatch && hasBuMatch;
+      });
+    }, [currentEvent, selectedBuName, selectedDate]);
+
+    const finalBuId = useMemo(() => {
+      if (!selectedSlotId || !selectedBuName) return null;
+
+      const slot = availableTimes.find(
+        (slot) => slot.slotId === selectedSlotId,
+      );
+      if (!slot) return null;
+
+      const targetBU = slot.bus.find((bu) => bu.buName === selectedBuName);
+      return targetBU ? targetBU.allocationId : null;
+    }, [availableTimes, selectedSlotId, selectedBuName]);
+
+    // --- Handlers (Reset) ---
+
+    const handleEventChange = (event) => {
+      setSelectedEventId(event.target.value);
+      setSelectedBuName("");
+      setSelectedDate("");
+      setFlatpickrDate(null);
+      setSelectedSlotId("");
+    };
+
+    const handleBuChange = (event) => {
+      setSelectedBuName(event.target.value);
+      setSelectedDate("");
+      setFlatpickrDate(null);
+      setSelectedSlotId("");
+    };
+
+    const handleDateChange = (dates) => {
+      if (dates && dates.length > 0) {
+        setFlatpickrDate(dates);
+
+        const thaiDateStr = formatToThaiDate(dates);
+        setSelectedDate(thaiDateStr);
+      } else {
+        setFlatpickrDate(null);
+        setSelectedDate("");
+      }
+    };
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+
+      if (!user) {
+        onClickLogin();
+        return;
+      }
+
+      if (
+        !selectedEventId ||
+        !selectedBuName ||
+        !selectedSlotId ||
+        !finalBuId ||
+        !currentEvent
+      ) {
+        Swal.fire({
+          icon: "warning",
+          title: "กรุณากรอกข้อมูลให้ครบ",
+          timer: 2000,
+        });
+        return;
+      }
+
+      const params = new URLSearchParams();
+
+      if (selectedEventId) params.append("eventId", selectedEventId);
+      if (selectJobType) params.append("eventJobType", selectJobType);
+      if (finalBuId) params.append("slotId", finalBuId);
+      if (currentEvent) params.append("eventName", currentEvent.eventName);
+      if (selectedBuName) params.append("buName", selectedBuName);
+      if (selectedSlotId) {
+        const [date, startTime, endTime] = selectedSlotId.split("_");
+        const timePeriod = `${startTime}-${endTime}`;
+        const thaiDateStr = parseThaiDate(date).toLocaleString("th-TH", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+
+        params.append("date", thaiDateStr);
+        params.append("time", timePeriod);
+      }
+
+      history.push({
+        pathname: "/interview/add",
+        search: params.toString(),
+      });
+
+      window.scrollTo(0, 0);
+    };
+
+    return (
+      <form
+        onSubmit={handleSubmit}
+        className="w-full bg-base-100 py-6 px-6 lg:px-12 rounded-lg shadow-md gap-4 lg:gap-6"
+      >
+        <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Event DropDown */}
+          {/* 1. Event */}
+          <div className="w-full">
+            <label className="text-sm font-medium text-gray-500 mb-1.5 ml-1 block">
+              เลือกอีเวนต์
+            </label>
+            <select
+              className="select select-bordered w-full"
+              value={selectedEventId}
+              onChange={handleEventChange}
+              disabled={isLoading}
+            >
+              <option value="" disabled>
+                เลือกกิจกรรม
+              </option>
+              {events.map((e) => (
+                <option key={e.eventId} value={e.eventId}>
+                  {e.eventName}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Event DropDown */}
+          <div className="w-full">
+            <label className="text-sm font-medium text-gray-500 mb-1.5 ml-1 block">
+              เลือกสาขา/ภูมิภาค
+            </label>
+            <select
+              className="select select-bordered w-full"
+              value={selectedBuName}
+              onChange={handleBuChange}
+              disabled={!selectedEventId}
+            >
+              <option value="" disabled>
+                เลือกสาขา/ภูมิภาค
+              </option>
+              {availableBuNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date picker */}
+          <div className="w-full">
+            <label className="text-sm font-medium text-gray-500 mb-1.5 ml-1 block">
+              เลือกวันที่
+            </label>
+            <FlatpickrInput
+              key={selectedBuName}
+              value={flatpickrDate}
+              onChange={handleDateChange}
+              options={{
+                dateFormat: "Y-m-d",
+                minDate: dateConfig.min,
+                maxDate: dateConfig.max,
+                enable: dateConfig.enable,
+                disableMobile: true,
+              }}
+              disabled={!selectedBuName}
+            />
+          </div>
+
+          {/* Time Period DropDown */}
+          <div className="w-full">
+            <label className="text-sm font-medium text-gray-500 mb-1.5 ml-1 block">
+              เลือกช่วงเวลา
+            </label>
+            <select
+              className="select select-bordered w-full"
+              value={selectedSlotId}
+              onChange={(e) => setSelectedSlotId(e.target.value)}
+              disabled={!selectedDate}
+            >
+              <option value="" disabled>
+                เลือกเวลา
+              </option>
+              {availableTimes.map((slot) => (
+                <option key={slot.slotId} value={slot.slotId}>
+                  {slot.startTime} - {slot.endTime}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-6 w-full flex justify-center">
+          <button
+            type="submit"
+            className="w-full flex items-center justify-center gap-2 text-nowrap bg-emerald-600 text-white rounded-box px-6 py-2.5 transform transition-all duration-300 hover:bg-emerald-500 cursor-pointer font-normal "
+          >
+            <i className="fa-solid fa-magnifying-glass text-sm"></i>
+            <p>ค้นหาอีเวนต์</p>
+          </button>
+        </div>
+      </form>
+    );
+  };
+</script>

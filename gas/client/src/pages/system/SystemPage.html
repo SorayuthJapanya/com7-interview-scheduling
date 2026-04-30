@@ -1,0 +1,360 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+  const SystemPage = () => {
+    const [loading, setLoading] = useState(false);
+    const [optionLoading, setOptionsLoading] = useState(false);
+    const [rawEventBuData, setRawEventBuData] = useState([]);
+    const [eventOptions, setEventOptions] = useState([]);
+    const [buOptions, setBuOptions] = useState([]);
+
+    const [filters, setFilters] = useState({
+      eventName: "",
+      buName: "",
+      startDate: "",
+      endDate: "",
+    });
+
+    const [dashboardData, setDashboardData] = useState({
+      kpi: {
+        totalEvents: 0,
+        totalCandidates: 0,
+        totalOffers: 0,
+        conversionRate: 0,
+        totalCapacity: 0,
+        capacityUtilization: 0,
+      },
+      charts: {
+        statusDistribution: {},
+        candidateTrend: { labels: [], data: [] },
+      },
+    });
+
+    const handleInputChange = (e) => {
+      const { name, value } = e.target;
+      setFilters((prev) => {
+        const newData = { ...prev, [name]: value };
+        if (name === "eventName") {
+          newData.buName = ""; // Reset BU เมื่อเปลี่ยน Event
+        }
+        return newData;
+      });
+    };
+
+    const handleDateChange = (field, value) => {
+      setFilters((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const handleClear = () => {
+      setFilters({
+        eventName: "",
+        buName: "",
+        startDate: "",
+        endDate: "",
+      });
+    };
+
+    const fetchData = (e) => {
+      if (e) e.preventDefault(); // Prevent Form Submit Refresh
+      setLoading(true);
+
+      // Safe Date Formatting
+      const formatDate = (dateStr) =>
+        dateStr ? new Date(dateStr).toISOString().split("T")[0] : "";
+
+      const payload = {
+        eventName: filters.eventName,
+        buName: filters.buName,
+        startDate: formatDate(filters.startDate),
+        endDate: formatDate(filters.endDate),
+      };
+
+      google.script.run
+        .withSuccessHandler((response) => {
+          if (response.success) {
+            setDashboardData(response.payload);
+          } else {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: response.message,
+              timer: 2000,
+            });
+          }
+          setLoading(false);
+        })
+        .withFailureHandler((err) => {
+          setLoading(false);
+          Swal.fire({
+            icon: "error",
+            title: "System Error",
+            text: err.message,
+            timer: 2000,
+          });
+        })
+        .getAllDataForDashBoard(payload);
+    };
+
+    const fetchEventAndBu = () => {
+      setOptionsLoading(true);
+      google.script.run
+        .withSuccessHandler((response) => {
+          setRawEventBuData(response);
+          const eventNames = response.map((event) => event.eventName);
+          setEventOptions(eventNames);
+          setOptionsLoading(false);
+        })
+        .getEventAndBuStructure();
+    };
+
+    useEffect(() => {
+      fetchData();
+      fetchEventAndBu();
+    }, []);
+
+    // Logic สำหรับกรอง BU ตาม Event ที่เลือก
+    useEffect(() => {
+      if (filters.eventName && rawEventBuData.length > 0) {
+        // Fix: เปลี่ยนจาก formData.eventName เป็น filters.eventName
+        const selectedEventObj = rawEventBuData.find(
+          (p) => p.eventName === filters.eventName,
+        );
+
+        if (selectedEventObj && selectedEventObj.bu) {
+          const sortedBu = [...selectedEventObj.bu].sort((a, b) =>
+            a.buName.localeCompare(b.buName),
+          );
+          const buNames = sortedBu.map((d) => d.buName);
+          setBuOptions(buNames);
+        } else {
+          setBuOptions([]);
+        }
+      } else {
+        setBuOptions([]);
+      }
+    }, [filters.eventName, rawEventBuData]);
+
+    // --- Prepare Data for Charts ---
+    const lineChartData = {
+      labels: dashboardData.charts.candidateTrend.labels,
+      datasets: [
+        {
+          label: "จำนวนผู้สมัคร",
+          data: dashboardData.charts.candidateTrend.data,
+          borderColor: "#3b82f6",
+          backgroundColor: "rgba(59, 130, 246, 0.1)",
+          tension: 0.3,
+          fill: true,
+        },
+      ],
+    };
+
+    const statusKeys = Object.keys(dashboardData.charts.statusDistribution);
+    const statusValues = Object.values(dashboardData.charts.statusDistribution);
+
+    const statusColorMap = {
+      รอการพิจารณา: "#f59e0b",
+      ผ่าน: "#10b981",
+      ไม่ผ่าน: "#ef4444",
+      เก็บไว้พิจารณา: "#6b7280",
+      ไม่ผ่านการพิจารณา: "#f97316",
+    };
+
+    const dynamicColors =
+      statusKeys.length > 0
+        ? statusKeys.map((status) => statusColorMap[status] || "#cccccc")
+        : ["#e5e7eb"];
+
+    const pieChartData = {
+      labels: statusKeys.length > 0 ? statusKeys : ["No Data"],
+      datasets: [
+        {
+          data: statusValues.length > 0 ? statusValues : [1],
+          backgroundColor: dynamicColors,
+          borderWidth: 0,
+          hoverOffset: 4,
+        },
+      ],
+    };
+
+    return (
+      <div className="w-full max-w-7xl xl:max-w-[1440px] mx-auto pb-24">
+        {/* Header & Filter Section */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4 animate-fade-in-up relative z-10">
+          <div className="flex flex-col text-center sm:text-start">
+            <SystemHeader
+              title="แอดมินแดชบอร์ด"
+              subTitle="ภาพรวมสถิติผู้สมัครและประสิทธิภาพของแต่ละหน่วยงาน"
+            />
+          </div>
+        </div>
+
+        <form
+          onSubmit={fetchData}
+          className="bg-base-100 p-5 rounded-2xl shadow-sm border border-base-300 mb-8 animate-fade-in-up relative z-10"
+        >
+          <div className="w-full flex flex-col gap-4 items-end">
+            <div className="w-full flex items-center gap-4">
+              <div className="w-full">
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 ml-1 block">
+                  อีเวนต์
+                </label>
+                <SearchableSelect
+                  name="eventName"
+                  value={filters.eventName || ""}
+                  onChange={handleInputChange}
+                  options={optionLoading ? [] : eventOptions}
+                  disabled={optionLoading}
+                />
+              </div>
+
+              <div className="w-full">
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 ml-1 block">
+                  เลือกภูมิภาค/สาขา
+                </label>
+                <SearchableSelect
+                  name="buName"
+                  value={filters.buName || ""}
+                  onChange={handleInputChange}
+                  options={buOptions}
+                  disabled={optionLoading || !filters.eventName}
+                />
+              </div>
+
+              <div className="w-full">
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 ml-1 block">
+                  วันที่เริ่มต้น
+                </label>
+                <FlatpickrInput
+                  value={filters.startDate}
+                  onChange={(val) => handleDateChange("startDate", val)}
+                  icon={<i className="fa-regular fa-calendar"></i>}
+                  placeholder="เลือกวันที่"
+                  options={{ dateFormat: "Y-m-d" }}
+                />
+              </div>
+
+              <div className="w-full">
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 ml-1 block">
+                  วันที่สิ้นสุด
+                </label>
+                <FlatpickrInput
+                  value={filters.endDate}
+                  onChange={(val) => handleDateChange("endDate", val)}
+                  icon={<i className="fa-regular fa-calendar"></i>}
+                  placeholder="เลือกวันที่"
+                  options={{ dateFormat: "Y-m-d" }}
+                />
+              </div>
+            </div>
+
+            {/* ปุ่ม Search แบบ Icon */}
+            <div className="w-full flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleClear}
+                className="btn btn-ghost text-gray-500 hover:bg-slate-100 border-slate-200"
+                disabled={loading}
+                title="ล้างค่า"
+              >
+                ล้างค่า
+              </button>
+              <button
+                type="submit"
+                className="btn bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-md hover:shadow-lg flex-1 lg:flex-none px-6 gap-2"
+                disabled={loading}
+              >
+                กรองข้อมูล
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {/* KPI Cards Section */}
+        {loading ? (
+          <div className="w-full flex justify-center animate-fade-in-up">
+            <span className="loading loading-spinner loading-md"></span>
+          </div>
+        ) : (
+          <div className="w-full relative">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 animate-fade-in-up">
+              <KpiCard
+                title="อีเวนต์ทั้งหมด"
+                value={dashboardData.kpi.totalEvents}
+                icon="fa-solid fa-calendar"
+              />
+              <KpiCard
+                title="ผู้สมัครทั้งหมด"
+                value={dashboardData.kpi.totalCandidates}
+                icon="fa-solid fa-users"
+              />
+              <KpiCard
+                title="ผ่านสัมภาษณ์ (Offer)"
+                value={dashboardData.kpi.totalOffers}
+                icon="fa-solid fa-check-circle"
+              />
+              <KpiCard
+                title="อัตราส่วนระหว่างสล็อตที่เปิดและจำนวนผู้สมัครที่ลงทะเบียน"
+                value={`${dashboardData.kpi.capacityUtilization}%`}
+                icon="fa-solid fa-chart-pie"
+              />
+            </div>
+
+            {/* Charts Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+              {/* Left: Line Chart (Takes 2/3 space) */}
+              <div className="lg:col-span-2">
+                <ChartCard
+                  title="แนวโน้มผู้สมัครรายวัน (Candidate Trend)"
+                  type="line"
+                  data={lineChartData}
+                  options={{
+                    scales: {
+                      y: {
+                        display: true,
+                        title: {
+                          display: true,
+                          text: "จำนวนผู้สมัคร",
+                        },
+                        beginAtZero: true,
+                        min: 0,
+                        max:
+                          Math.max(
+                            ...dashboardData.charts.candidateTrend.data,
+                          ) * 2,
+                      },
+                      x: {
+                        display: true,
+                        title: {
+                          display: true,
+                          text: "วันที่",
+                        },
+                      },
+                    },
+                    plugins: { legend: { display: false } },
+                    interaction: {
+                      mode: "index",
+                      intersect: false,
+                    },
+                  }}
+                />
+              </div>
+
+              {/* Right: Pie Chart (Takes 1/3 space) */}
+              <div className="lg:col-span-1">
+                <ChartCard
+                  title="สัดส่วนสถานะผู้สมัคร (Status Distribution)"
+                  type="doughnut"
+                  data={pieChartData}
+                  options={{
+                    cutout: "60%",
+                    plugins: { legend: { position: "bottom" } },
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+</script>

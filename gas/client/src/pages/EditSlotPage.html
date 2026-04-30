@@ -1,0 +1,109 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+  const { useLocation, useHistory } = ReactRouterDOM;
+
+  const EditSlotPage = ({ user, onClickLogin }) => {
+    const location = useLocation();
+
+    const useQuery = () => {
+      return new URLSearchParams(location.search);
+    };
+
+    const query = useQuery();
+    const eventId = query.get("eventId") || "";
+    const slotId = query.get("slotId") || "";
+    const interviewId = query.get("interviewId") || "";
+    const eventName = query.get("eventName") || "";
+    const eventLocation = query.get("eventLocation") || "";
+    const eventType = query.get("eventType") || "";
+    const dateParams = query.get("dateQuery") || "";
+
+    const [eventData, setEventData] = useState({});
+    const [slotsData, setSlotsData] = useState([]);
+    const [date, setDate] = useState(dateParams);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const fetchEventAndSlots = () => {
+      setIsLoading(true);
+
+      const query = {
+        eventId,
+        dateQuery: date,
+      };
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success === true) {
+            setEventData(res.data.event);
+            setSlotsData(res.data.slots);
+          }
+          setIsLoading(false);
+        })
+        .withFailureHandler((err) => {
+          if (err) {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: err.message,
+              timer: 2000,
+            });
+          }
+          setIsLoading(false);
+        })
+        .getEventAndSlots(query);
+    };
+
+    useEffect(() => {
+      fetchEventAndSlots();
+    }, [date]);
+
+    return (
+      <>
+        <div className="padding-container py-16 sm:py-24 bg-base-200">
+          <div className="flex flex-col lg:flex-row items-center justify-center lg:justify-between gap-3 lg:gap-6 animate-fade-in-up">
+            {/* Header */}
+            <header className="flex flex-col items-center lg:items-start gap-1">
+              <h2 className="text-4xl font-medium text-center lg:text-start">
+                แก้ไขเวลานัดหมาย
+              </h2>
+              <h3 className="text-xl font-medium text-center lg:text-start">
+                {eventName}
+              </h3>
+              {eventType === "ONSITE" ? (
+                <p className="text-sm text-gray-500">
+                  สถานที่: {eventLocation}
+                </p>
+              ) : (
+                <p className="text-sm text-gray-500">ประเภท: {eventType}</p>
+              )}
+            </header>
+
+            {/* Date pagination */}
+            <DatePagination date={date} setDate={setDate} />
+          </div>
+        </div>
+
+        {/* Slots */}
+        <div className="padding-container xl:px-20 pt-18">
+          {isLoading ? (
+            <div className="w-full flex justify-center animate-fade-in-up">
+              <span className="loading loading-spinner loading-md"></span>
+            </div>
+          ) : (
+            <div className="max-w-7xl xl:max-w-[1440px] mx-auto animate-fade-in-up">
+              <SlotsList
+                slots={slotsData}
+                eventId={eventId}
+                slotBookId={slotId}
+                interviewId={interviewId}
+                eventName={eventName}
+                user={user}
+                onClickLogin={onClickLogin}
+              />
+            </div>
+          )}
+        </div>
+      </>
+    );
+  };
+</script>

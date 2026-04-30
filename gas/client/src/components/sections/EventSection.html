@@ -1,0 +1,80 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+  const { useHistory } = ReactRouterDOM;
+  const EventSection = ({ user }) => {
+    const [eventPage, setEventPage] = useState(1);
+    const [limit] = useState(6);
+    const [events, setEvents] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const history = useHistory();
+
+    const getEvents = () => {
+      setIsLoading(true);
+
+      const query = { page: eventPage, limit };
+      const userRole = user ? user.role : "USER";
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success === true) {
+            setEvents(res.data);
+          }
+          setIsLoading(false);
+        })
+        .withFailureHandler((err) => {
+          if (err) {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: err.message,
+              timer: 2000,
+            });
+          }
+          setIsLoading(false);
+        })
+        .getEventsData(query, userRole);
+    };
+
+    useEffect(() => {
+      getEvents();
+    }, [eventPage]);
+
+    return (
+      <div className="padding-container py-24 w-full space-y-6">
+        <Header
+          title="อีเวนต์สัมภาษณ์"
+          subTitle="เลือกอีเวนต์สัมภาษณ์ที่คุณต้องการเข้าร่วม"
+        />
+
+        {/* Event Card */}
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in-up">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="flex flex-col gap-4 w-full">
+                <div className="skeleton h-48 w-full rounded-xl"></div>
+                <div className="skeleton h-4 w-28"></div>
+                <div className="skeleton h-4 w-full"></div>
+                <div className="skeleton h-4 w-full"></div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mt-18 xl:px-20 animate-fade-in-up">
+            <EventCards events={events} />
+          </div>
+        )}
+
+        {/* Explor all events button */}
+        <div className="w-full mt-16 flex justify-center animate-fade-in-up">
+          <button
+            onClick={() => history.push("/events")}
+            className="btn btn-outline flex items-center gap-2 border-neutral-content font-normal"
+          >
+            <p>อีเวนต์ทั้งหมด</p>
+            <i className="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    );
+  };
+</script>

@@ -1,0 +1,108 @@
+<script type="text/babel">
+  const { useState, useEffect, useCallback } = React;
+
+  const TransactionPage = ({ user }) => {
+    // State
+    const [transactions, setTransactions] = useState([]);
+    const [paginationData, setPaginationData] = useState({});
+
+    // Pagination State
+    const [page, setPage] = useState(1);
+    const limit = 15;
+
+    // Loading & Options
+    const [isLoading, setIsLoading] = useState(false);
+
+    const fetchTransactionsData = useCallback(() => {
+      if (!user || !user.permission || !user.username) return;
+
+      setIsLoading(true);
+
+      const query = {
+        permission: user.permission,
+        username: user.username,
+        page,
+        limit,
+      };
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success === true) {
+            setTransactions(res.data);
+            setPaginationData(res.pagination);
+          } else {
+            setTransactions([]);
+            setPaginationData({});
+          }
+          setIsLoading(false);
+        })
+        .withFailureHandler((err) => {
+          console.error(err);
+          Swal.fire({
+            icon: "error",
+            title: "เกิดข้อผิดพลาด",
+            text: err.message || "ไม่สามารถดึงข้อมูลได้",
+          });
+          setIsLoading(false);
+        })
+        .getFullManagerStructure(query); // ชื่อ function Backend ต้องตรง
+    }, [page, limit, user]);
+
+    useEffect(() => {
+      fetchTransactionsData();
+    }, [page]);
+
+    return (
+      <div className="w-full padding-container pb-24 px-4 sm:px-6">
+        <div className="flex flex-col md:flex-row justify-between items-center my-10 gap-4 animate-fade-in-up">
+          <div className="text-center sm:text-start">
+            <SystemHeader
+              title="ประวัติการดำเนินการ"
+              subTitle="ดูรายละเอียดการประเมินผู้สมัครของคุณในระบบ"
+            />
+          </div>
+
+          {paginationData && paginationData.totalItems > 0 && (
+            <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg text-sm font-medium border border-emerald-100">
+              พบข้อมูลทั้งหมด{" "}
+              <span className="font-bold text-emerald-800">
+                {paginationData.totalItems}
+              </span>{" "}
+              รายการ
+            </div>
+          )}
+        </div>
+
+        {isLoading ? (
+          <div className="w-full py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
+            <span className="loading loading-dots loading-lg text-emerald-500"></span>
+            <p className="text-sm font-light">กำลังโหลดข้อมูล...</p>
+          </div>
+        ) : (
+          <div className="animate-fade-in-up">
+            {transactions.length > 0 ? (
+              <>
+                <TransactionTable transactions={transactions} />
+
+                <div className="mt-6 flex justify-center">
+                  <PagePagination
+                    currentPage={paginationData.currentPage || 1}
+                    totalPages={paginationData.totalPages || 1}
+                    onPageChange={(p) => {
+                      setPage(p);
+                      window.scrollTo(0, 0);
+                    }}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="w-full py-16 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                <p className="text-gray-500 font-medium">ไม่พบการดำเนินการ</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+</script>

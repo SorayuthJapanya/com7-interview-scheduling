@@ -1,0 +1,15 @@
+<script type="text/babel">
+  const KpiCard = ({ title, value, icon }) => {
+    return (
+      <div className="card bg-base-100 shadow-sm border border-base-300 p-4 flex flex-row justify-between items-center gap-3 rounded-xl hover:shadow-md transition-shadow">
+        <div>
+          <h1 className="text-gray-500 text-xs">{title}</h1>
+          <p className="text-2xl font-medium">{value}</p>
+        </div>
+        <div className="flex items-center justify-center size-10 rounded-full bg-emerald-50 text-emerald-600">
+          <i className={`${icon} text-sm`}></i>
+        </div>
+      </div>
+    );
+  };
+</script>

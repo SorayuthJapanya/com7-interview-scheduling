@@ -1,0 +1,307 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+  const EditEventModal = ({
+    user,
+    isOpen,
+    onClose,
+    onRefresh,
+    event,
+    jobTypeDropdown,
+  }) => {
+    const formatedDate = (date) => {
+      const d = new Date(date);
+      if (d.getFullYear() > 2400) d.setFullYear(d.getFullYear() - 543);
+      const year = String(d.getFullYear());
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    const formatedTime = (time) => {
+      const d = new Date(time);
+      return d.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    };
+
+    const initFormData = (targetEvent) => ({
+      eventName: targetEvent?.Event_Name || "",
+      userName: user?.name || "",
+      openingDate: formatedDate(targetEvent?.Opening_At),
+      openningTime: formatedTime(targetEvent?.Opening_At),
+      closingDate: formatedDate(targetEvent?.Closing_At),
+      closingTime: formatedTime(targetEvent?.Closing_At),
+      location: targetEvent?.Location || "",
+      eventType: targetEvent?.Event_Type || "",
+      jobType: targetEvent?.Job_Type || "",
+      eventStatus: targetEvent?.Status === true ? "TRUE" : "FALSE",
+      userRole: user?.role || "USER",
+      action: "",
+    });
+
+    const [formData, setFormData] = useState(() => initFormData(event));
+
+    const [isFetching, setIsFetching] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    if (!isOpen) return null;
+
+    const handleChange = (e) => {
+      const { name, value } = e.target;
+      setFormData((prev) => {
+        const newFormData = { ...prev, [name]: value };
+        if (name === "eventType" && value === "ONLINE") {
+          newFormData.location = "";
+        }
+        return newFormData;
+      });
+    };
+
+    // รัยค่าจาก Flatpickr
+    const handleDateChange = (field, value) => {
+      setFormData((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      setIsLoading(true);
+
+      const eventId = event?.Sheet_ID;
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success === true) {
+            onClose();
+            onRefresh();
+            Swal.fire({
+              icon: "success",
+              title: res.message,
+            });
+          } else {
+            Swal.fire({
+              icon: "error",
+              title: res.message,
+            });
+          }
+          setIsLoading(false);
+        })
+        .updateEventData(eventId, formData);
+    };
+
+    useEffect(() => {
+      if (isOpen && event) {
+        setFormData(initFormData(event));
+      }
+    }, [event, isOpen]);
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+        {/* 1. Backdrop */}
+        <div
+          className="absolute inset-0 bg-black/60 transition-opacity"
+          onClick={onClose}
+        ></div>
+
+        {/* 2. Dialog */}
+        <div className="bg-white w-full max-w-lg mx-auto max-h-[90vh] rounded-lg shadow-lg z-50 overflow-y-auto animate-fade-in-up">
+          {/* Header */}
+          <div className="flex justify-between items-center p-4 border-b border-gray-200 rounded-t-lg">
+            <h2 className="text-lg font-medium">แก้ไขข้อมูลอีเวนต์</h2>
+            <button
+              onClick={onClose}
+              className="btn btn-circle btn-ghost group"
+            >
+              <i className="fa-solid fa-xmark text-gray-500 group-hover:text-gray-700 duration-200"></i>
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="p-4 overflow-y-auto custom-scrollbar">
+            {isFetching ? (
+              <div className="w-full flex justyfy-center">
+                <span className="loading loading-spinner"></span>
+              </div>
+            ) : (
+              <form
+                id="eventForm"
+                onSubmit={handleSubmit}
+                className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+              >
+                {/* Event Name (Col Span 2) */}
+                <div className="sm:col-span-2 form-control">
+                  <label className="text-gray-500">
+                    ชื่องานอีเวนต์ <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="eventName"
+                    value={formData.eventName}
+                    onChange={handleChange}
+                    placeholder="เช่น JobFair 2026"
+                    className="input input-bordered w-full"
+                    required
+                  />
+                </div>
+
+                {/* Opening Date */}
+                <FlatpickrInput
+                  label="วันที่เริ่มงาน"
+                  value={formData.openingDate}
+                  onChange={(val) => handleDateChange("openingDate", val)}
+                  icon={<i className="fa-regular fa-calendar-check"></i>}
+                  placeholder="เลือกวันที่"
+                  options={{
+                    dateFormat: "Y-m-d",
+                    minDate: formData.openingDate ? null : "today",
+                  }}
+                />
+
+                {/* Opening Time */}
+                <FlatpickrInput
+                  label="เวลาเริ่ม"
+                  value={formData.openningTime}
+                  onChange={(val) => handleDateChange("openningTime", val)}
+                  icon={<i className="fa-regular fa-clock"></i>}
+                  placeholder="09:00"
+                  options={{
+                    enableTime: true,
+                    noCalendar: true,
+                    dateFormat: "H:i",
+                    time_24hr: true,
+                  }}
+                />
+
+                {/* Closing Date */}
+                <FlatpickrInput
+                  label="วันที่สิ้นสุด"
+                  value={formData.closingDate}
+                  onChange={(val) => handleDateChange("closingDate", val)}
+                  icon={<i className="fa-regular fa-calendar-check"></i>}
+                  placeholder="เลือกวันที่"
+                  options={{
+                    dateFormat: "Y-m-d",
+                    minDate: formData.openingDate || "today",
+                  }}
+                />
+
+                {/* Closing Time */}
+                <FlatpickrInput
+                  label="เวลาสิ้นสุด"
+                  value={formData.closingTime}
+                  onChange={(val) => handleDateChange("closingTime", val)}
+                  icon={<i className="fa-regular fa-clock"></i>}
+                  placeholder="18:00"
+                  options={{
+                    enableTime: true,
+                    noCalendar: true,
+                    dateFormat: "H:i",
+                    time_24hr: true,
+                  }}
+                />
+
+                {/* Type */}
+                <div className="sm:col-span-2 form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">ประเภทงาน</span>
+                  </label>
+                  <select
+                    name="eventType"
+                    value={formData.eventType}
+                    onChange={handleChange}
+                    className="select select-bordered w-full"
+                  >
+                    <option value="">-- เลือกประเภท --</option>
+                    <option value="ONSITE">ONSITE</option>
+                    <option value="ONLINE">ONLINE</option>
+                  </select>
+                </div>
+
+                {/* Location */}
+                {formData.eventType === "ONSITE" && (
+                  <div className="sm:col-span-2 form-control">
+                    <label className="label">
+                      <span className="label-text font-medium">
+                        สถานที่จัดงาน
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      name="location"
+                      value={formData.location}
+                      onChange={handleChange}
+                      placeholder="ระบุสถานที่"
+                      className="input input-bordered w-full"
+                    />
+                  </div>
+                )}
+
+                {/* Job Type*/}
+                <div className="sm:col-span-2 form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">
+                      ประเภทของตำแหน่งงาน
+                    </span>
+                  </label>
+                  <select
+                    name="jobType"
+                    value={formData.jobType}
+                    onChange={handleChange}
+                    className="select select-bordered w-full"
+                  >
+                    <option value="">-- เลือกประเภทของตำแหน่งงาน --</option>
+                    {jobTypeDropdown.map((item) => (
+                      <option key={item.name} value={item.name}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2 form-control">
+                  <label className="text-gray-500">สถานะการใช้งาน</label>
+                  <select
+                    name="eventStatus"
+                    value={formData.eventStatus}
+                    onChange={handleChange}
+                    className="select select-bordered w-full"
+                  >
+                    <option value="">-- เลือกประเภท --</option>
+                    <option value="TRUE">Active</option>
+                    <option value="FALSE">Inactive</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2 form-control">
+                  <InputField
+                    label="หมายเหตุ"
+                    name="action"
+                    value={formData.action}
+                    onChange={handleChange}
+                    placeholder="ระบุรหมายเหตุ"
+                    required
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <button
+                    type="submit"
+                    form="eventForm"
+                    disabled={isLoading}
+                    className="w-full btn bg-emerald-600 hover:bg-emerald-500 text-white shadow-md border-none px-6 rounded-lg duration-200 transition-all"
+                  >
+                    {isLoading ? (
+                      <span className="loading loading-spinner"></span>
+                    ) : (
+                      "แก้ไขอีเวนต์"
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+</script>

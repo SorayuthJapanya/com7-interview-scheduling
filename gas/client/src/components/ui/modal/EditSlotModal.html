@@ -1,0 +1,300 @@
+<script type="text/babel">
+  const { useState } = React;
+
+  const EditSlotModal = ({
+    user,
+    slotData,
+    isOpen,
+    onClose,
+    eventId,
+    queryDate,
+  }) => {
+    const [formData, setFormData] = useState({
+      startTime: "",
+      endTime: "",
+      bu: [],
+    });
+
+    const formatedTime = (timeValue) => {
+      if (!timeValue) return "";
+
+      if (
+        typeof timeValue === "string" &&
+        timeValue.length === 5 &&
+        timeValue.includes(":")
+      ) {
+        return timeValue;
+      }
+
+      const d = new Date(timeValue);
+      if (isNaN(d.getTime())) return "";
+
+      return d.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    };
+
+    useEffect(() => {
+      if (isOpen && slotData) {
+        setFormData({
+          startTime: formatedTime(slotData.startTime),
+          endTime: formatedTime(slotData.endTime),
+          bu: slotData.bu,
+        });
+      }
+    }, [isOpen, slotData]);
+
+    const handleTimeChange = (field, value) => {
+      setFormData((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const handleBuChange = (index, field, value) => {
+      const updatedBu = [...formData.bu];
+      updatedBu[index][field] =
+        field === "capacity" ? parseInt(value) || 0 : value;
+      setFormData((prev) => ({ ...prev, bu: updatedBu }));
+    };
+
+    const handleAddBu = () => {
+      setFormData((prev) => ({
+        ...prev,
+        bu: [...prev.bu, { name: "", capacity: 0, slotId: null }],
+      }));
+    };
+
+    const handleRemoveBu = (index) => {
+      const updatedBu = [...formData.bu];
+      updatedBu.splice(index, 1);
+      setFormData((prev) => ({ ...prev, bu: updatedBu }));
+    };
+
+    const handleSaveClick = () => {
+      if (!formData.startTime || !formData.endTime) {
+        Swal.fire("ข้อมูลไม่ครบ", "กรุณาระบุเวลาเริ่มและสิ้นสุด", "warning");
+        return;
+      }
+
+      const cleanBu = formData.bu.filter((b) => b.name.trim() !== "");
+
+      const payload = {
+        ...formData,
+        eventId,
+        date: queryDate,
+        bu: cleanBu,
+        userName: user.name,
+        userRole: user.role,
+      };
+
+      Swal.fire({
+        title: "ยืนยันการแก้ไข?",
+        text: `ระบุเหตุผลในการแก้ไขสล็อต?`,
+        icon: "warning",
+        input: "textarea",
+        inputPlaceholder: "ระบุเหตุผลในการแก้ไขที่นี่...",
+        inputAttributes: {
+          "aria-label": "ระบุเหตุผลในการแก้ไข",
+        },
+        showCancelButton: true,
+        confirmButtonText: "ยืนยัน",
+        cancelButtonText: "ยกเลิก",
+        showLoaderOnConfirm: true,
+
+        inputValidator: (value) => {
+          if (!value) {
+            return "กรุณาระบุเหตุผลในการแก้ไข";
+          }
+        },
+
+        preConfirm: (inputValue) => {
+          const action = inputValue;
+
+          const data = {
+            ...payload,
+            action,
+          };
+
+          return new Promise((resolve) => {
+            google.script.run
+              .withSuccessHandler((res) => {
+                if (res.success) {
+                  resolve(res); // resoponse data to then
+                } else {
+                  Swal.showValidationMessage(
+                    res.message || "เกิดข้อผิดพลาดจากเซิร์ฟเวอร์"
+                  );
+                  resolve(null);
+                }
+              })
+              .withFailureHandler((err) => {
+                Swal.showValidationMessage(`เกิดข้อผิดพลาด: ${err.message}`);
+                resolve(null);
+              })
+              .editSlotEvent(data);
+          });
+        },
+      }).then((result) => {
+        if (result.isConfirmed && result.value) {
+          Swal.fire({
+            icon: "success",
+            title: "แก้ไขสล็อตสำเร็จ",
+            text: result.value.message,
+            timer: 2000,
+            showConfirmButton: false,
+          }).then(() => {
+            onClose();
+          });
+        }
+      });
+    };
+
+    if (!isOpen) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+        <div
+          className="absolute inset-0 bg-black/60 transition-opacity"
+          onClick={onClose}
+        ></div>
+
+        <div className="bg-base-100 w-full max-w-4xl mx-auto rounded-xl shadow-2xl z-50 flex flex-col max-h-[90vh] animate-fade-in-up">
+          {/* Header */}
+          <div className="flex justify-between items-center p-5 border-b border-base-300 bg-base-200  ">
+            <div>
+              <h2 className="text-xl font-medium">แก้ไขสล็อตเวลา</h2>
+            </div>
+            <button
+              onClick={onClose}
+              className="btn btn-sm btn-circle btn-ghost"
+            >
+              <i className="fa-solid fa-xmark text-lg"></i>
+            </button>
+          </div>
+
+          <div className="p-6 overflow-y-auto custom-scrollbar">
+            {/* 1. Time Section */}
+            <div className="bg-base-100 p-4 rounded-lg border border-base-300 mb-6">
+              <div className="flex items-center gap-2 mb-3 text-emerald-600 font-medium">
+                <i className="fa-regular fa-clock"></i> กำหนดช่วงเวลา
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FlatpickrInput
+                  label="เวลาเริ่มต้น"
+                  value={formData.startTime}
+                  onChange={(val) => handleTimeChange("startTime", val)}
+                  options={{
+                    enableTime: true,
+                    noCalendar: true,
+                    dateFormat: "H:i",
+                    time_24hr: true,
+                  }}
+                />
+
+                <FlatpickrInput
+                  label="เวลาสิ้นสุด"
+                  value={formData.endTime}
+                  onChange={(val) => handleTimeChange("endTime", val)}
+                  options={{
+                    enableTime: true,
+                    noCalendar: true,
+                    dateFormat: "H:i",
+                    time_24hr: true,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* 2. BU List Section */}
+            <div className="space-y-3">
+              <div className="flex justify-between items-end">
+                <h3 className="font-medium text-gray-500 text-sm">
+                  รายการหน่วยงาน (BUs)
+                </h3>
+                <button
+                  onClick={handleAddBu}
+                  className="btn btn-outline border-emerald-500 text-emerald-600 hover:bg-emerald-50"
+                >
+                  <i className="fa-solid fa-plus"></i> เพิ่ม BU
+                </button>
+              </div>
+
+              <div className="border border-base-300 rounded-lg overflow-hidden">
+                <table className="table w-full bg-base-100">
+                  <thead className="bg-base-200 text-gray-500 text-sm">
+                    <tr>
+                      <td className="w-10 text-center">#</td>
+                      <td>ชื่อหน่วยงาน</td>
+                      <td className="w-24 text-center">จำนวน</td>
+                      <td className="w-16 text-center">ลบ</td>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {formData.bu.map((item, index) => (
+                      <tr key={index} className="hover:bg-base-200">
+                        <td className="text-center text-gray-500 text-sm">
+                          {index + 1}
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            className="input input-ghost w-full"
+                            placeholder="ระบุชื่อ BU"
+                            value={item.name}
+                            onChange={(e) =>
+                              handleBuChange(index, "name", e.target.value)
+                            }
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input
+                            type="number"
+                            min="0"
+                            className="input input-bordered w-full text-center"
+                            value={item.capacity}
+                            onChange={(e) =>
+                              handleBuChange(index, "capacity", e.target.value)
+                            }
+                          />
+                        </td>
+                        <td className="text-center">
+                          <button
+                            onClick={() => handleRemoveBu(index)}
+                            className="btn btn-sm btn-ghost text-red-400 hover:text-red-600 hover:bg-red-50"
+                          >
+                            <i className="fa-solid fa-trash-can"></i>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {formData.bu.length === 0 && (
+                  <div className="text-center py-6 text-gray-400 italic">
+                    ไม่มีรายการ BU ในสล็อตนี้
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="p-5 border-t border-base-300 bg-base-200 flex justify-end gap-3 rounded-b-xl">
+            <button
+              onClick={onClose}
+              className="btn btn-ghost text-gray-400 hover:text-gray-600 duration-200 transition-all cursor-pointer"
+            >
+              ยกเลิก
+            </button>
+            <button
+              onClick={handleSaveClick}
+              className="btn bg-emerald-600 hover:bg-emerald-500 text-white min-w-[120px] shadow-md border-none"
+            >
+              <i className="fa-solid fa-save"></i> บันทึกการแก้ไข
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+</script>

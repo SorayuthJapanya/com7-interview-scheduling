@@ -1,0 +1,165 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+
+  const ManagerTable = ({ user, data, onClickEdit, onReset }) => {
+    const formatDateAndTime = (dateString) => {
+      if (!dateString || typeof dateString !== "string") return "-";
+
+      try {
+        const [datePart, timePart] = dateString.split(" ");
+        if (!datePart) return "-";
+
+        const dateParts = datePart.split("/");
+        if (dateParts.length !== 3) return dateString;
+
+        const day = parseInt(dateParts[0], 10);
+        const month = parseInt(dateParts[1], 10) - 1;
+        let year = parseInt(dateParts[2], 10);
+
+        if (year > 2400) year -= 543;
+
+        let hours = 0,
+          minutes = 0,
+          seconds = 0;
+        if (timePart) {
+          const timeParts = timePart.split(":");
+          hours = parseInt(timeParts[0], 10) || 0;
+          minutes = parseInt(timeParts[1], 10) || 0;
+          seconds = parseInt(timeParts[2], 10) || 0;
+        }
+
+        const dateObject = new Date(year, month, day, hours, minutes, seconds);
+
+        if (isNaN(dateObject.getTime())) return "-";
+
+        const formattedDate = dateObject.toLocaleDateString("th-TH", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+
+        const formattedTime = dateObject.toLocaleTimeString("th-TH", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        });
+
+        return `${formattedDate} ${formattedTime}`;
+      } catch (e) {
+        return "-";
+      }
+    };
+
+    if (!data || data.length === 0) {
+      return <div className="text-center p-4">ไม่พบข้อมูล</div>;
+    }
+
+    const handleClickUpdate = (managerData) => {
+      onClickEdit(managerData);
+    };
+
+    const handleClickDelete = (username) => {
+      Swal.fire({
+        title: "คุณแน่ใจใช่ไหมว่าต้องการลบบัญชีผู้สัมภาษณ์นี้?",
+        icon: "warning",
+        showCancelButton: true,
+        cancelButtonText: "ไม่, ยกเลิก",
+        confirmButtonText: "ยืนยัน",
+        showLoaderOnConfirm: true,
+
+        preConfirm: () => {
+          return new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler((res) => {
+                if (res.success) {
+                  resolve(res); // resoponse data to then
+                } else {
+                  Swal.showValidationMessage(
+                    res.message || "เกิดข้อผิดพลาดจากเซิร์ฟเวอร์",
+                  );
+                  resolve(false);
+                }
+              })
+              .withFailureHandler((err) => {
+                Swal.showValidationMessage(`เกิดข้อผิดพลาด: ${err.message}`);
+                resolve(false);
+              })
+              .deleteManager(username);
+          });
+        },
+      }).then((result) => {
+        if (result.isConfirmed && result.value) {
+          Swal.fire({
+            icon: "success",
+            title: "ลบบัญชีผู้สัมภาษณ์เสร็จสิ้น",
+            text: result.value.message,
+            timer: 2000,
+            showConfirmButton: false,
+          }).then(() => {
+            onReset();
+          });
+        }
+      });
+    };
+
+    return (
+      <div className="overflow-x-auto shadow-md rounded-lg border border-base-200 mt-4">
+        <table className="table table-zebra w-full">
+          {/* --- Head --- */}
+          <thead className="bg-base-200 text-gray-500">
+            <tr className="font-normal">
+              <td className="text-center">ลำดับ</td>
+              <td className="text-center">ชื่อผู้ใช้งาน (username)</td>
+              <td>ชื่อ-สกุล</td>
+              <td>ประเภทอีเวนต์ที่รับผิดชอบ</td>
+              <td>เวลาที่สร้าง</td>
+              <td className="text-center">ตัวดำเนินการ</td>
+            </tr>
+          </thead>
+
+          {/* --- Body --- */}
+          <tbody>
+            {data.map((row, index) => (
+              <tr key={row.Username} className="hover:bg-base-200">
+                {/* ลำดับ */}
+                <th className="text-center">{index + 1}</th>
+
+                {/* ชื่อผู้ใช้งาน */}
+                <td className="text-center">{row.Username}</td>
+
+                {/* ชื่อ-สกุล และ Role */}
+                <td>
+                  <div>{row.Name}</div>
+                </td>
+
+                {/* อีเวนต์ที่รับผิดชอบ */}
+                <td>{row.PermissionType}</td>
+
+                {/* เวลาที่สร้าง */}
+                <td>{formatDateAndTime(row.TimeStamp)} น.</td>
+
+                {/* ตัวดำเนินการ */}
+                <td className="text-center">
+                  <div className="join">
+                    <button
+                      onClick={() => handleClickUpdate(row)}
+                      className="btn btn-sm btn-info join-item text-white"
+                    >
+                      <i className="fa-solid fa-pen-to-square"></i> แก้ไข
+                    </button>
+                    <button
+                      onClick={() => handleClickDelete(row.Username)}
+                      className="btn btn-sm btn-error join-item text-white"
+                    >
+                      <i className="fa-solid fa-trash"></i> ลบ
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+</script>

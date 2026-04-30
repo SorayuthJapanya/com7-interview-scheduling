@@ -1,0 +1,45 @@
+<script type="text/babel">
+  const InputField = ({
+    label,
+    name,
+    type = "text",
+    value,
+    onChange,
+    placeholder,
+    colSpan = 1,
+    required = false,
+    readOnly = false,
+  }) => {
+    const getColSpanClass = (span) => {
+      const classMap = {
+        1: "col-span-1 lg:col-span-1",
+        2: "col-span-1 lg:col-span-2",
+        3: "col-span-1 lg:col-span-3",
+        4: "col-span-1 lg:col-span-4",
+      };
+      return classMap[span] || "col-span-1 lg:col-span-1";
+    };
+
+    return (
+      <div className={`form-control w-full ${getColSpanClass(colSpan)}`}>
+        {label && (
+          <label className="text-gray-500 text-sm">
+            {label} {required && <span className="text-error">*</span>}
+          </label>
+        )}
+        <input
+          type={type}
+          name={name}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          readOnly={readOnly}
+          required={required}
+          className={`input input-bordered w-full ${
+            readOnly ? "bg-base-200" : "focus:input-primary"
+          }`}
+        />
+      </div>
+    );
+  };
+</script>

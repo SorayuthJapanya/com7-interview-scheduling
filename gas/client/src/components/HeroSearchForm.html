@@ -1,0 +1,80 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+  const { useHistory } = ReactRouterDOM;
+
+  const HeroSearchForm = ({
+    filters,
+    onInputChange,
+    onDateChange,
+    events,
+    minDate,
+    maxDate,
+    isLoading,
+  }) => {
+    const history = useHistory();
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+
+      const params = new URLSearchParams();
+
+      if (filters.eventName) params.append("eventName", filters.eventName);
+      if (filters.date) params.append("date", filters.date);
+
+      history.push({
+        pathname: "/events/search",
+        search: params.toString(),
+      });
+    };
+
+    return (
+      <form
+        onSubmit={handleSubmit}
+        className="w-full flex flex-col lg:flex-row bg-white py-6 px-6 lg:px-12  rounded-box lg:rounded-full shadow-md items-center justify-between gap-4 lg:gap-20"
+      >
+        <div className="w-full flex flex-col lg:flex-row items-start lg:items-center justify-start gap-4">
+          {/* Event Dropdown */}
+          <div className="w-full">
+            <label className="text-sm font-medium text-gray-500 mb-1.5 ml-1 block">
+              เลือกอีเวนต์ที่ต้องการ
+            </label>
+            <SelectField
+              name="eventName"
+              value={filters.eventName || ""}
+              onChange={onInputChange}
+              options={isLoading ? [] : events}
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="w-full">
+            <label className="text-sm font-medium text-gray-500 mb-1.5 ml-1 block">
+              เลือกวันที่
+            </label>
+            <FlatpickrInput
+              key={minDate + maxDate}
+              value={filters.date}
+              onChange={(val) => onDateChange("date", val)}
+              icon={<i className="fa-regular fa-calendar"></i>}
+              placeholder="เลือกวันที่"
+              options={{
+                dateFormat: "Y-m-d",
+                minDate: minDate || null,
+                maxDate: maxDate || null,
+              }}
+              disabled={isLoading}
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          className="w-max flex items-center gap-2 text-nowrap bg-emerald-600 text-white rounded-full px-6 py-2 sm:py-3 transform transition-all hover:scale-105 duration-300 hover:bg-emerald-500 cursor-pointer font-normal "
+        >
+          <i className="fa-solid fa-magnifying-glass size-5"></i>
+          <p>ค้นหาอีเวนต์</p>
+        </button>
+      </form>
+    );
+  };
+</script>

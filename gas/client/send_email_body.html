@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top" />
+    <link
+      href="https://fonts.googleapis.com/css?family=Prompt:300,400,500,700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Fallback สำหรับ Email Client ที่รองรับ Style Tag */
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: "Prompt", Arial, sans-serif;
+        background-color: #ffffff;
+      }
+    </style>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 40px 0;
+      background-color: #ffffff;
+      font-family: 'Prompt', Arial, sans-serif;
+    "
+  >
+    <div
+      style="
+        max-width: 450px;
+        margin: 0 auto;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+      "
+    >
+      <div
+        style="
+          text-align: center;
+          padding: 24px 24px 16px 24px;
+          border-bottom: 1px solid #e5e7eb;
+        "
+      >
+        <img
+          src="https://companieslogo.com/img/orig/COM7.BK_BIG-1d5f8726.png?t=1720244491"
+          alt="com7-logo"
+          style="
+            width: 96px;
+            height: auto;
+            display: block;
+            margin: 0 auto 10px auto;
+          "
+        />
+        <h2
+          style="margin: 0; font-size: 20px; font-weight: 500; color: #000000"
+        >
+          ยินดีต้อนรับสู่ระบบจัดการตารางสัมภาษณ์
+        </h2>
+        <p style="margin: 5px 0 0 0; font-size: 14px; color: #6b7280">
+          <?= email ?>
+        </p>
+      </div>
+
+      <div
+        style="padding: 24px; color: #374151; font-size: 14px; line-height: 1.6"
+      >
+        <p style="margin-top: 0">
+          สวัสดีคุณ <strong><?= username ?></strong>,
+        </p>
+
+        <p>
+          บัญชีผู้ใช้ของคุณถูกสร้างเรียบร้อยแล้วครับ
+          ด้านล่างนี้คือข้อมูลสำหรับเข้าสู่ระบบของคุณ
+        </p>
+
+        <p style="color: #ef4444; font-weight: 500">
+          หมายเหตุ: Username และ Password จะมีอายุแค่ 2 วันเท่านั้น
+        </p>
+
+        <div
+          style="
+            background-color: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+          "
+        >
+          <p style="margin: 5px 0">
+            👤 <strong>อีเมล:</strong>
+            <?= email ?>
+          </p>
+          <p style="margin: 5px 0">
+            🔑 <strong>โทเคน:</strong>
+            <?= token ?>
+          </p>
+        </div>
+
+        <p>คุณสามารถคลิกปุ่มด้านล่างเพื่อเข้าสู่ระบบ</p>
+
+        <div
+          style="
+            text-align: center;
+            padding: 20px 0 30px 0;
+            border-bottom: 1px solid #e5e7eb;
+          "
+        >
+          <a
+            href="<?= loginUrl ?>"
+            style="
+              display: inline-block;
+              background-color: #16a34a;
+              color: #ffffff;
+              text-decoration: none;
+              padding: 12px 32px;
+              border-radius: 9999px;
+              font-weight: 500;
+              box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            "
+          >
+            เข้าสู่ระบบทันที
+          </a>
+        </div>
+
+        <p
+          style="
+            text-align: center;
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 20px;
+          "
+        >
+          หากคุณไม่ได้เป็นผู้ร้องขอข้อมูลนี้ โปรดเพิกเฉยต่ออีเมลฉบับนี้<br />
+          Sent automatically via Google Apps Script
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

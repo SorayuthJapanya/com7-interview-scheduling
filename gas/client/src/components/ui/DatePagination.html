@@ -1,0 +1,211 @@
+<script type="text/babel">
+  const { useState, useRef, useEffect, useMemo } = React;
+
+  const DatePagination = ({ date, setDate }) => {
+    const [hovered, setHovered] = useState(null);
+
+    const dateInputDesktopRef = useRef(null);
+    const dateInputMobileRef = useRef(null);
+
+    const fpDesktopInstance = useRef(null);
+    const fpMobileInstance = useRef(null);
+
+    const addDays = (dateStr, days) => {
+      if (!dateStr) return "";
+      const d = new Date(dateStr);
+      d.setDate(d.getDate() + days);
+      return d.toISOString().split("T")[0];
+    };
+
+    const formatDate = (dateStr) => {
+      const d = new Date(dateStr);
+      if (isNaN(d)) return "-";
+      return d.toLocaleDateString("th-TH", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+    };
+
+    const scaleClass = (key) => {
+      if (hovered === key) return "scale-110 text-white bg-emerald-600";
+      if (!hovered && key === "current") return "bg-emerald-600 text-white";
+      return "scale-100 text-gray-500";
+    };
+
+    const prevDate = addDays(date, -1);
+    const nextDate = addDays(date, 1);
+
+    // ใช้ useMemo เพื่อไม่ให้ config ถูกสร้างใหม่ทุกครั้ง
+    const flatpickrConfig = useMemo(
+      () => ({
+        dateFormat: "Y-m-d",
+        defaultDate: date,
+        disableMobile: true,
+        position: "below",
+        onChange: (selectedDates, dateStr, instance) => {
+          if (selectedDates.length > 0) {
+            const selected = selectedDates[0];
+            const englishDateStr = instance.formatDate(selected, "Y-m-d");
+            setDate(englishDateStr);
+          }
+        },
+      }),
+      [date, setDate]
+    );
+
+    // Initialize Flatpickr
+    useEffect(() => {
+      if (typeof flatpickr === "undefined") {
+        console.error("Flatpickr library is missing!");
+        return;
+      }
+
+      // Destroy existing instances
+      fpDesktopInstance.current?.destroy();
+      fpMobileInstance.current?.destroy();
+
+      // Create new instances
+      if (dateInputDesktopRef.current) {
+        fpDesktopInstance.current = flatpickr(
+          dateInputDesktopRef.current,
+          flatpickrConfig
+        );
+      }
+
+      if (dateInputMobileRef.current) {
+        fpMobileInstance.current = flatpickr(
+          dateInputMobileRef.current,
+          flatpickrConfig
+        );
+      }
+
+      return () => {
+        fpDesktopInstance.current?.destroy();
+        fpMobileInstance.current?.destroy();
+      };
+    }, [flatpickrConfig]);
+
+    // Update date when prop changes
+    useEffect(() => {
+      if (fpDesktopInstance.current) {
+        fpDesktopInstance.current.setDate(date, false);
+      }
+      if (fpMobileInstance.current) {
+        fpMobileInstance.current.setDate(date, false);
+      }
+    }, [date]);
+
+    // Open Helpers
+    const openDesktopDatePicker = () => {
+      fpDesktopInstance.current?.open();
+    };
+
+    const openMobileDatePicker = () => {
+      fpMobileInstance.current?.open();
+    };
+
+    if (!date) return null;
+
+    return (
+      <div>
+        {/* Desktop */}
+        <div className="hidden sm:flex items-center gap-4 p-2 bg-base-200 border border-gray-200 shadow-sm rounded-lg text-sm">
+          <button
+            onClick={() => setDate(prevDate)}
+            className="btn btn-circle btn-ghost btn-sm sm:btn-md text-gray-400 hover:text-white hover:bg-emerald-600 transition-all duration-300"
+          >
+            <i className="fa-solid fa-chevron-left"></i>
+          </button>
+
+          <div className="flex items-center gap-4 font-medium relative">
+            {/* Prev */}
+            <button
+              onMouseEnter={() => setHovered("prev")}
+              onMouseLeave={() => setHovered(null)}
+              onClick={() => setDate(prevDate)}
+              className={`px-4 py-2 rounded-lg cursor-pointer text-center transition-all duration-300 ${scaleClass(
+                "prev"
+              )}`}
+            >
+              {formatDate(prevDate)}
+            </button>
+
+            <div className="relative">
+              {/* Current */}
+              <button
+                onMouseEnter={() => setHovered("current")}
+                onMouseLeave={() => setHovered(null)}
+                onClick={openDesktopDatePicker}
+                className={`relative px-4 py-2 rounded-lg text-center cursor-pointer transition-all scale-110 duration-300 z-10 ${scaleClass(
+                  "current"
+                )}`}
+              >
+                {formatDate(date)}
+              </button>
+
+              <input
+                ref={dateInputDesktopRef}
+                type="text"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-0"
+                readOnly
+              />
+            </div>
+
+            {/* Next */}
+            <button
+              onMouseEnter={() => setHovered("next")}
+              onMouseLeave={() => setHovered(null)}
+              onClick={() => setDate(nextDate)}
+              className={`px-4 py-2 rounded-lg cursor-pointer text-center transition-all duration-300 ${scaleClass(
+                "next"
+              )}`}
+            >
+              {formatDate(nextDate)}
+            </button>
+          </div>
+
+          <button
+            onClick={() => setDate(nextDate)}
+            className="btn btn-circle btn-ghost btn-sm sm:btn-md text-gray-400 hover:text-white hover:bg-emerald-600 transition-all duration-300"
+          >
+            <i className="fa-solid fa-chevron-right"></i>
+          </button>
+        </div>
+
+        {/* Mobile */}
+        <div className="flex sm:hidden items-center justify-between gap-2">
+          <button
+            onClick={() => setDate(prevDate)}
+            className="btn btn-sm btn-ghost"
+          >
+            <i className="fa-solid fa-chevron-left font-medium text-emerald-600"></i>
+          </button>
+
+          <div className="relative">
+            <span
+              onClick={openMobileDatePicker}
+              className="relative font-medium text-emerald-600 cursor-pointer z-10"
+            >
+              {formatDate(date)}
+            </span>
+
+            <input
+              ref={dateInputMobileRef}
+              type="text"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-0"
+              readOnly
+            />
+          </div>
+
+          <button
+            onClick={() => setDate(nextDate)}
+            className="btn btn-sm btn-ghost"
+          >
+            <i className="fa-solid fa-chevron-right font-medium text-emerald-600"></i>
+          </button>
+        </div>
+      </div>
+    );
+  };
+</script>

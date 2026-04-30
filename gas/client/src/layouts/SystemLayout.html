@@ -1,0 +1,9 @@
+<script type="text/babel">
+  const SystemLayout = ({ children, user, setUser, onLogout }) => {
+    return (
+      <Sidebar user={user} setUser={setUser} onLogout={onLogout}>
+        {children}
+      </Sidebar>
+    );
+  };
+</script>

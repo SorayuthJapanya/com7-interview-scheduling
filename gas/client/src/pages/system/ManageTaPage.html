@@ -1,0 +1,104 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+  const ManageTaPage = ({ user }) => {
+    const [addModalOpen, setIsAddModalOpen] = useState(false);
+    const [editModalOpen, setEditModalOpen] = useState(null);
+    const [taData, setTaData] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const fetchTaData = () => {
+      setIsLoading(true);
+
+      const normalizeDate = (dateStr) => {
+        const d = new Date(dateStr);
+        if (d.getFullYear() > 2400) {
+          d.setFullYear(d.getFullYear() - 543);
+        }
+        return d.getTime();
+      };
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          const sortedData = [...res].sort((a, b) => {
+            const timeA = normalizeDate(a.TimeStamp);
+            const timeB = normalizeDate(b.TimeStamp);
+            return timeB - timeA;
+          });
+
+          setTaData(sortedData);
+          setIsLoading(false);
+        })
+        .withFailureHandler((err) => {
+          if (err) {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: err.message,
+              timer: 2000,
+            });
+          }
+          setIsLoading(false);
+        })
+        .getAllTaData(user.role);
+    };
+
+    useEffect(() => {
+      fetchTaData();
+    }, []);
+
+    return (
+      <div className="w-full max-w-7xl xl:max-w-[1440px] mx-auto pb-24">
+        {/* Header & Filter Section */}
+        <div className="flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-6 mb-8 animate-fade-in-up">
+          <div className="flex flex-col text-center sm:text-start">
+            <SystemHeader
+              title="จัดการผู้ใช้งาน"
+              subTitle="ตรวจสอบและแก้ไขข้อมูลผู้ใช้งานในระบบ"
+            />
+          </div>
+
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="btn bg-emerald-600 hover:bg-emerald-500 text-white  hover:scale-110 duration-300 transition-all"
+          >
+            เพิ่มผู้ใช้งาน
+          </button>
+        </div>
+
+        {/* Table Section */}
+        {isLoading ? (
+          <div className="w-full flex justify-center animate-fade-in-up">
+            <span className="loading loading-spinner loading-md"></span>
+          </div>
+        ) : (
+          <div className="w-full animate-fade-in">
+            <TaTable
+              user={user}
+              data={taData}
+              onRefresh={fetchTaData}
+              setOnEdit={setEditModalOpen}
+            />
+          </div>
+        )}
+
+        {addModalOpen && (
+          <AddTaModal
+            isOpen={addModalOpen}
+            onRefresh={fetchTaData}
+            onClose={() => setIsAddModalOpen(false)}
+          />
+        )}
+
+        {editModalOpen && (
+          <EditTaModal
+            user={user}
+            isOpen={editModalOpen}
+            ta={editModalOpen}
+            onClose={() => setEditModalOpen(null)}
+            onRefresh={fetchTaData}
+          />
+        )}
+      </div>
+    );
+  };
+</script>

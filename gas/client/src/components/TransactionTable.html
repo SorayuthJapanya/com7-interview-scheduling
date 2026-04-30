@@ -1,0 +1,82 @@
+<script type="text/babel">
+  const TransactionTable = ({ transactions }) => {
+    const formatDate = (dateString) => {
+      if (!dateString) return "-";
+      const date = new Date(dateString);
+      if (date.getFullYear() > 2400) date.setFullYear(date.getFullYear() - 543);
+      return date.toLocaleDateString("th-TH", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    };
+
+    const getStatusStyle = (status) => {
+      switch (status) {
+        case "รอการพิจารณา":
+          return "bg-yellow-100 text-yellow-700 border-yellow-200";
+        case "ผ่าน":
+          return "bg-green-100 text-green-700 border-green-200";
+        case "ไม่ผ่าน":
+          return "bg-red-100 text-red-700 border-red-200";
+        case "ไม่ผ่านการพิจารณา":
+          return "bg-red-100 text-red-700 border-red-200";
+        case "เก็บไว้พิจารณา":
+          return "bg-gray-100 text-gray-700 border-gray-200";
+        default:
+          return "bg-yellow-100 text-yellow-700 border-yellow-200";
+      }
+    };
+
+    return (
+      <div className="overflow-x-auto shadow-md rounded-lg border border-base-200 mt-4">
+        <table className="table table-zebra w-full">
+          {/* --- Head --- */}
+          <thead className="bg-base-200 text-gray-500">
+            <tr className="font-normal">
+              <td className="text-center">ลำดับ</td>
+              <td>ชื่อ-สกุล</td>
+              <td>ชื่อผู้สมัคร</td>
+              <td>เปลี่ยนสถานะ</td>
+              <td>เวลาที่เปลี่ยนสถานะ</td>
+            </tr>
+          </thead>
+
+          {/* --- Body --- */}
+          <tbody>
+            {transactions.map((row, index) => (
+              <tr key={index} className="hover:bg-base-200">
+                {/* ลำดับ */}
+                <th className="text-center">{index + 1}</th>
+
+                {/* ชื่อ-สกุล และ Role */}
+                <td>
+                  <div>{row.Name}</div>
+                </td>
+
+                {/* ชื่อผู้ใช้งาน */}
+                <td>{row.Candidate_Name}</td>
+
+                <td>
+                  คุณได้เปลี่ยนสถานะเป็น{" "}
+                  <span
+                    className={`badge badge-sm ${getStatusStyle(
+                      row.Status_Changes
+                    )}`}
+                  >
+                    {row.Status_Changes}
+                  </span>
+                </td>
+
+                {/* เวลาที่สร้าง */}
+                <td>{formatDate(row.TimeStamp)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+</script>

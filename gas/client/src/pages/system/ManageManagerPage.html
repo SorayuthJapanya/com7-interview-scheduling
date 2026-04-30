@@ -1,0 +1,178 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+
+  const ManageManagerPage = ({ user }) => {
+    const [addModalOpen, setIsAddModalOpen] = useState(false);
+    const [editModalOpen, setEditModalOpen] = useState(null);
+    const [search, setSearch] = useState("");
+    const [page, setPage] = useState(1);
+    const limit = 15;
+
+    const [managerData, setManagerData] = useState([]);
+    const [paginationData, setPaginationData] = useState({});
+
+    const [eventDropdown, setEventDropdown] = useState([]);
+
+    const [isLoading, setIsLoading] = useState(false);
+
+    const fetchManagerData = ({ search, page }) => {
+      setIsLoading(true);
+
+      const query = {
+        search,
+        page,
+        limit,
+      };
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success === true) {
+            setManagerData(res.data);
+            setPaginationData(res.pagination);
+          }
+          setIsLoading(false);
+        })
+        .withFailureHandler((err) => {
+          if (err) {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: err.message,
+              timer: 2000,
+            });
+          }
+          setIsLoading(false);
+        })
+        .getAllManagerData(query, user.role);
+    };
+
+    const fetchEventDropDown = () => {
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success === true) {
+            setEventDropdown(res.data);
+          }
+        })
+        .withFailureHandler((err) => {
+          if (err) {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: err.message,
+              timer: 2000,
+            });
+          }
+        })
+        .getEventsData({}, user.role);
+    };
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      fetchManagerData({ search: search, page: page });
+    };
+
+    const handleReset = () => {
+      setSearch("");
+      setPage(1);
+      fetchManagerData({ search: "", page: 1 });
+    };
+
+    useEffect(() => {
+      fetchManagerData({ search: search, page: page });
+    }, [page]);
+
+    useEffect(() => {
+      fetchEventDropDown();
+    }, []);
+
+    return (
+      <div className="w-full max-w-7xl xl:max-w-[1440px] mx-auto pb-24">
+        {/* Header & Filter Section */}
+        <div className="flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-6 mb-8 animate-fade-in-up">
+          <div className="flex flex-col text-center sm:text-start">
+            <SystemHeader
+              title="จัดการผู้สัมภาษณ์"
+              subTitle="ตรวจสอบและแก้ไขข้อมูลผู้สัมภาษณ์ในระบบ"
+            />
+          </div>
+
+          <form
+            onSubmit={handleSubmit}
+            className="w-full max-w-md flex items-center gap-4"
+          >
+            <InputField
+              name="search"
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="🔍 ค้นหาชื่อผู้สัมภาษณ์..."
+              className="w-full"
+            />
+            <button type="submit" className="hidden" />
+            <button
+              type="button"
+              onClick={handleReset}
+              className="btn btn-ghost text-gray-500 hover:bg-slate-100 border-slate-200"
+              disabled={isLoading}
+              title="รีเซ็ทค้นหา"
+            >
+              รีเซ็ท
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsAddModalOpen(true)}
+              className="btn bg-emerald-600 hover:bg-emerald-500 text-white  hover:scale-110 duration-300 transition-all"
+            >
+              เพิ่มผู้สัมภาษณ์
+            </button>
+          </form>
+        </div>
+
+        {/* Table Section */}
+        {isLoading ? (
+          <div className="w-full flex justify-center animate-fade-in-up">
+            <span className="loading loading-spinner loading-md"></span>
+          </div>
+        ) : (
+          <div className="w-full animate-fade-in">
+            <ManagerTable
+              user={user}
+              data={managerData}
+              onClickEdit={setEditModalOpen}
+              onReset={handleReset}
+            />
+
+            <div className="mt-6 flex justify-center">
+              <PagePagination
+                currentPage={paginationData.currentPage || 1}
+                totalPages={paginationData.totalPages || 1}
+                onPageChange={(p) => {
+                  setPage(p);
+                  window.scrollTo(0, 0);
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {addModalOpen && (
+          <AddManagerModal
+            isOpen={addModalOpen}
+            onRefresh={handleReset}
+            onClose={() => setIsAddModalOpen(false)}
+          />
+        )}
+
+        {editModalOpen && (
+          <EditManagerModal
+            isOpen={editModalOpen}
+            managerData={editModalOpen}
+            eventDropdown={eventDropdown}
+            onClose={() => setEditModalOpen(null)}
+            onRefresh={handleReset}
+          />
+        )}
+      </div>
+    );
+  };
+</script>

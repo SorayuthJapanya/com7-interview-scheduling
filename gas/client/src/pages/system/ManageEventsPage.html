@@ -1,0 +1,299 @@
+<script type="text/babel">
+  const { useState } = React;
+  const ManageEventsPage = ({ user }) => {
+    const [page, setPage] = useState(1);
+    const [limit, setLimit] = useState(6);
+    const [search, setSearch] = useState("");
+    const [status, setStatus] = useState("");
+
+    const [events, setEvents] = useState([]);
+    const [paginationData, setPaginationData] = useState({});
+    const [jobTypeDropdown, setJobTypeDropdown] = useState([]);
+
+    const [isAddEventModalOpen, setIsAddModalOpen] = useState(false);
+    const [isClickUpdate, setIsClickUpdate] = useState(null);
+    const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(null);
+
+    const [isLoading, setIsLoading] = useState(false);
+
+    const getEventsData = () => {
+      setIsLoading(true);
+
+      const query = {
+        page,
+        limit,
+        search,
+        status,
+      };
+      const userRole = user ? user.role : "USER";
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success === true) {
+            setEvents(res.data);
+            setPaginationData(res.pagination);
+          } else {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: res.message,
+              timer: 2000,
+            });
+          }
+          setIsLoading(false);
+        })
+        .withFailureHandler((err) => {
+          if (err) {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: err.message,
+              timer: 2000,
+            });
+          }
+          setIsLoading(false);
+        })
+        .getEventsData(query, userRole);
+    };
+
+    const fetchJobTypeDropdown = () => {
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res) {
+            setJobTypeDropdown(res);
+          }
+        })
+        .withFailureHandler((err) => {
+          if (err) {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: err.message,
+              timer: 2000,
+            });
+          }
+        })
+        .getJobTypeDropdown();
+    };
+
+    const handleEditEvent = (event) => {
+      setIsClickUpdate(event);
+    };
+
+    const handleTransactionEvent = (event) => {
+      setIsTransactionModalOpen(event);
+    };
+
+    const handleDeleteEvent = (event) => {
+      Swal.fire({
+        title: "ยืนยันการลบ?",
+        text: `คุณต้องการลบอีเวนต์ "${event.Event_Name}" ใช่หรือไม่?`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#d33",
+        cancelButtonColor: "#3085d6",
+        confirmButtonText: "ลบข้อมูล",
+        cancelButtonText: "ยกเลิก",
+        showLoaderOnConfirm: true,
+        allowOutsideClick: () => !Swal.isLoading(),
+
+        preConfirm: () => {
+          Swal.showLoading();
+
+          const data = {
+            eventId: event.Sheet_ID,
+            userRole: user.role,
+          };
+
+          return new Promise((resolve) => {
+            google.script.run
+              .withSuccessHandler((res) => {
+                if (res.success) {
+                  resolve(res); // resoponse data to then
+                } else {
+                  Swal.showValidationMessage(
+                    res.message || "เกิดข้อผิดพลาดจากเซิร์ฟเวอร์",
+                  );
+                  resolve(null);
+                }
+              })
+              .withFailureHandler((err) => {
+                Swal.showValidationMessage(`เกิดข้อผิดพลาด: ${err.message}`);
+                resolve(null);
+              })
+              .deleteEventData(data);
+          });
+        },
+      }).then((result) => {
+        if (result.isConfirmed && result.value) {
+          Swal.fire({
+            icon: "success",
+            title: "ลบอีเวนต์สำเร็จ",
+            text: result.value.message,
+            timer: 2000,
+            showConfirmButton: false,
+          }).then(() => {
+            getEventsData();
+          });
+        }
+      });
+    };
+
+    useEffect(() => {
+      getEventsData();
+    }, [page, limit, status]);
+
+    useEffect(() => {
+      if (search === "") {
+        getEventsData();
+      }
+    }, [search]);
+
+    useEffect(() => {
+      fetchJobTypeDropdown();
+    }, []);
+
+    const handleSearchKeyDown = (e) => {
+      if (e.key === "Enter") {
+        getEventsData();
+      }
+    };
+
+    return (
+      <div className="w-full max-w-7xl xl:max-w-[1440px] mx-auto pb-24">
+        {/* Header & Filter Section */}
+        <div className="flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-6 mb-6 animate-fade-in-up">
+          <div className="flex flex-col text-center sm:text-start">
+            <SystemHeader
+              title="จัดการอีเวนต์"
+              subTitle="ตรวจสอบและแก้ไขข้อมูลอีเวนต์และสล็อตในระบบ"
+            />
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-center sm:justify-end w-full sm:w-auto gap-3 flex-1">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                getEventsData();
+              }}
+              className="relative w-full sm:w-60"
+            >
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                placeholder="ค้นหาชื่ออีเวนต์..."
+                className="input input-bordered w-full "
+              />
+            </form>
+
+            {/* Status Select (มี Label บอกชัดเจน หรือใส่ icon) */}
+            <div className="w-full sm:w-48">
+              <select
+                onChange={(e) => setStatus(e.target.value)}
+                className="select select-bordered w-full text-gray-600"
+                defaultValue=""
+              >
+                <option value="" disabled selected>
+                  สถานะ
+                </option>{" "}
+                <option value="">ทั้งหมด</option>
+                <option value="TRUE">🟢 เปิดใช้งาน</option>
+                <option value="FALSE">🔴 ปิดใช้งาน</option>
+              </select>
+            </div>
+
+            <div className="w-full sm:w-auto">
+              <button
+                onClick={() => setIsAddModalOpen(true)}
+                className="btn bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto shadow-md hover:shadow-lg border-none flex items-center gap-2"
+              >
+                เพิ่มอีเวนต์ใหม่
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* --- Action Toolbar --- */}
+        {/* Event Body */}
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="flex flex-col gap-4 w-full animate-pulse">
+                <div className="skeleton h-48 w-full rounded-xl"></div>
+                <div className="skeleton h-4 w-28"></div>
+                <div className="skeleton h-4 w-full"></div>
+                <div className="skeleton h-4 w-full"></div>
+              </div>
+            ))}
+          </div>
+        ) : events.length > 0 ? (
+          <div className="animate-fade-in-up">
+            <p className="text-gray-500 mt-8">
+              ทั้งหมด: {events.length} อีเวนต์
+            </p>
+            {/* Grid แสดง Event Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+              {events.map((event, index) => (
+                <SystemEventCard
+                  key={index}
+                  event={event}
+                  onEdit={handleEditEvent}
+                  onDelete={handleDeleteEvent}
+                  onTransaction={handleTransactionEvent}
+                  user={user}
+                />
+              ))}
+            </div>
+
+            {/* Pagination */}
+            <PagePagination
+              currentPage={paginationData.currentPage || 1}
+              totalPages={paginationData.totalPages || 1}
+              onPageChange={(p) => {
+                setPage(p);
+                window.scrollTo(0, 0);
+              }}
+            />
+          </div>
+        ) : (
+          // Empty State
+          <div className="text-center py-20 bg-gray-50 rounded-xl border-dashed border-2 border-gray-200 animate-fade-in-up">
+            <p className="text-gray-500 text-lg">ไม่พบข้อมูลอีเวนต์</p>
+          </div>
+        )}
+
+        {isAddEventModalOpen && (
+          <AddEventModal
+            user={user}
+            onRefresh={getEventsData}
+            isOpen={isAddEventModalOpen}
+            jobTypeDropdown={jobTypeDropdown}
+            onClose={() => setIsAddModalOpen(false)}
+          />
+        )}
+
+        {isClickUpdate && (
+          <EditEventModal
+            user={user}
+            isOpen={isClickUpdate}
+            onClose={() => setIsClickUpdate(null)}
+            onRefresh={getEventsData}
+            event={isClickUpdate}
+            jobTypeDropdown={jobTypeDropdown}
+          />
+        )}
+
+        {isTransactionModalOpen && (
+          <TransactionEventModal
+            user={user}
+            isOpen={isTransactionModalOpen}
+            onClose={() => setIsTransactionModalOpen(null)}
+            event={isTransactionModalOpen}
+          />
+        )}
+      </div>
+    );
+  };
+</script>

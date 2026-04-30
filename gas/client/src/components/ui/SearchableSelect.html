@@ -1,0 +1,168 @@
+<script type="text/babel">
+  const SearchableSelect = ({
+    label,
+    name,
+    value,
+    onChange,
+    options,
+    disabled,
+    required,
+    placeholder,
+    colSpan = 1,
+  }) => {
+    const [isOpen, setIsOpen] = React.useState(false);
+    const [searchTerm, setSearchTerm] = React.useState("");
+    const wrapperRef = React.useRef(null);
+    const inputRef = React.useRef(null);
+    const dropdownRef = React.useRef(null);
+    const [position, setPosition] = React.useState({
+      top: 0,
+      left: 0,
+      width: 0,
+    });
+
+    const getColSpanClass = (span) => {
+      const classMap = {
+        1: "col-span-1 lg:col-span-1",
+        2: "col-span-1 lg:col-span-2",
+        3: "col-span-1 lg:col-span-3",
+        4: "col-span-1 lg:col-span-4",
+      };
+      return classMap[span] || "col-span-1 lg:col-span-1";
+    };
+
+    React.useEffect(() => {
+      setSearchTerm(value || "");
+    }, [value]);
+
+    // คำนวณตำแหน่ง dropdown
+    React.useEffect(() => {
+      if (isOpen && inputRef.current) {
+        const rect = inputRef.current.getBoundingClientRect();
+        setPosition({
+          top: rect.bottom + window.scrollY + 4,
+          left: rect.left + window.scrollX,
+          width: rect.width,
+        });
+      }
+    }, [isOpen]);
+
+    // click outside (input + dropdown)
+    React.useEffect(() => {
+      function handleClickOutside(event) {
+        if (
+          wrapperRef.current &&
+          !wrapperRef.current.contains(event.target) &&
+          dropdownRef.current &&
+          !dropdownRef.current.contains(event.target)
+        ) {
+          setIsOpen(false);
+          if (!options.includes(searchTerm)) {
+            setSearchTerm(value || "");
+          }
+        }
+      }
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }, [searchTerm, value, options]);
+
+    const filteredOptions = options.filter((opt) =>
+      opt.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const handleSelect = (option) => {
+      onChange({
+        target: {
+          name,
+          value: option,
+        },
+      });
+      setSearchTerm(option);
+      setIsOpen(false);
+    };
+
+    return (
+      <>
+        {/* INPUT */}
+        <div
+          className={`form-control w-full ${getColSpanClass(colSpan)}`}
+          ref={wrapperRef}
+        >
+          {label && (
+            <label className="text-gray-500 text-sm mb-1">
+              {label} {required && <span className="text-error">*</span>}
+            </label>
+          )}
+
+          <div className="relative">
+            <input
+              ref={inputRef}
+              type="text"
+              className={`input input-bordered w-full pr-10 ${
+                disabled ? "bg-gray-100 cursor-not-allowed" : ""
+              }`}
+              placeholder={
+                disabled
+                  ? "กรุณาเลือกข้อมูลก่อนหน้า..."
+                  : placeholder || "พิมพ์เพื่อค้นหา..."
+              }
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setIsOpen(true);
+              }}
+              onClick={() => !disabled && setIsOpen(true)}
+              disabled={disabled}
+              required={required && !value}
+            />
+
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
+              <i
+                className={`fas fa-chevron-down transition-transform ${
+                  isOpen ? "rotate-180" : ""
+                }`}
+              ></i>
+            </div>
+          </div>
+        </div>
+
+        {/* DROPDOWN (PORTAL) */}
+        {isOpen &&
+          !disabled &&
+          ReactDOM.createPortal(
+            <div
+              ref={dropdownRef}
+              className="bg-white border border-gray-200 rounded-lg shadow-md animate-select-popup"
+              style={{
+                position: "absolute",
+                top: position.top,
+                left: position.left,
+                width: position.width,
+                zIndex: 99999,
+              }}
+            >
+              <ul className="max-h-60 overflow-y-auto py-1">
+                {filteredOptions.length > 0 ? (
+                  filteredOptions.map((option, index) => (
+                    <li
+                      key={index}
+                      className="cursor-pointer py-2 px-3 hover:bg-emerald-600 hover:text-white transition-colors"
+                      onClick={() => handleSelect(option)}
+                    >
+                      {option}
+                    </li>
+                  ))
+                ) : (
+                  <li className="py-2 px-3 text-gray-400 text-center">
+                    ไม่พบข้อมูล
+                  </li>
+                )}
+              </ul>
+            </div>,
+            document.body
+          )}
+      </>
+    );
+  };
+</script>

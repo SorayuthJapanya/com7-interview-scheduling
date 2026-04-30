@@ -1,0 +1,92 @@
+<script type="text/babel">
+  const { useCallback } = React;
+
+  const InterviewPage = ({ user, setSelectedInterview }) => {
+    const [interviews, setInterviews] = useState([]);
+    const [paginationData, setPaginationData] = useState({});
+    const [isLoading, setIsLoading] = useState(false);
+    const [page, setPage] = useState(1);
+    const [limit, setLimit] = useState(6);
+
+    const fetchInterviews = useCallback(() => {
+      setIsLoading(true);
+
+      const query = {
+        candidateId: user.userId,
+        page,
+        limit,
+      };
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success === true) {
+            setInterviews(res.data);
+            setPaginationData(res.pagination);
+          }
+          setIsLoading(false);
+        })
+        .withFailureHandler((err) => {
+          if (err) {
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: err.message,
+              timer: 2000,
+            });
+          }
+          setIsLoading(false);
+        })
+        .getAllInterviews(query, user.role);
+    }, [page, limit]);
+
+    useEffect(() => {
+      fetchInterviews();
+    }, [page, limit]);
+
+    return (
+      <div className="padding-container mt-16 text-sm animate-fade-in-up">
+        <header className="flex flex-col justify-center items-center sm:items-start">
+          <h1 className="font-semibold text-2xl md:text-3xl">
+            ผลการลงทะเบียนสัมภาษณ์
+          </h1>
+          <p className="text-sm md:text-base text-center sm:text-left text-gray-500/90 mt-2 max-w-156">
+            ดูและจัดการข้อมูลการลงทะเบียนสัมภาษณ์
+            (สามารถแก้ไขข้อมูลก่อนวันสัมภาษณ์ 3 วันเท่านั้น)
+          </p>
+        </header>
+
+        <div className="mt-12">
+          {isLoading ? (
+            <div className="w-full flex justify-center animate-spin">
+              <span className="loading loading-spinner loading-md"></span>
+            </div>
+          ) : (
+            <div className="space-y-6 w-full animate-fade-in-up">
+              <p className="text-gray-500 text-sm sm:text-base">
+                ทั้งหมด: {interviews ? interviews.length : 0}
+              </p>
+              {interviews.length > 0 ? (
+                <>
+                  {interviews.map((interview) => (
+                    <InterviewCard
+                      interview={interview}
+                      onClick={() => setSelectedInterview(interview)}
+                      user={user}
+                      key={interview.Interview_Id}
+                      interviewId={interview.Interview_Id}
+                      onFetching={fetchInterviews}
+                    />
+                  ))}
+                </>
+              ) : (
+                <div className="w-full flex justify-center text-gray-600">
+                  <p>ไม่พบการลงทะเบียนสัมภาณ์</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+</script>

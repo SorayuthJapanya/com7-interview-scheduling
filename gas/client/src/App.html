@@ -1,0 +1,248 @@
+<script type="text/babel">
+  const { useState, useEffect } = React;
+
+  const { HashRouter, Switch, Route, Redirect, useHistory, useParams } =
+    ReactRouterDOM;
+
+  const App = () => {
+    const [user, setUser] = useState(null);
+    const [isAuthModalOpen, setAuthModalOpen] = useState(false);
+    const [selectedInterview, setSelectedInterview] = useState(false);
+
+    const handleLogout = async () => {
+      Swal.fire({
+        title: "ยืนยันการออกจากระบบ?",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "ใช่, ออกจากระบบ",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          window.location.hash = "#/";
+          localStorage.removeItem("authUser");
+          setTimeout(() => {
+            setUser(null);
+          }, 100);
+        }
+      });
+    };
+
+    useEffect(() => {
+      const authUser = JSON.parse(localStorage.getItem("authUser") || "null");
+      if (authUser) {
+        setUser(authUser);
+      }
+    }, []);
+
+    useEffect(() => {
+      if (user) {
+        localStorage.setItem("authUser", JSON.stringify(user));
+      }
+    }, [user]);
+
+    return (
+      <HashRouter>
+        <Switch>
+          {/* Main Route */}
+          <Route path="/" exact>
+            <MainLayout
+              user={user}
+              setUser={setUser}
+              onLogout={handleLogout}
+              onClickLogin={() => setAuthModalOpen(true)}
+            >
+              <HomePage user={user} onClickLogin={() => setAuthModalOpen(true)} />
+            </MainLayout>
+          </Route>
+
+          {/*  Event Route */}
+          <Route path="/events" exact>
+            <MainLayout
+              user={user}
+              setUser={setUser}
+              onLogout={handleLogout}
+              onClickLogin={() => setAuthModalOpen(true)}
+            >
+              <EventsPage />
+            </MainLayout>
+          </Route>
+
+          {/*  Event Detail Route */}
+          <Route path="/events/slots" exact>
+            <MainLayout
+              user={user}
+              setUser={setUser}
+              onLogout={handleLogout}
+              onClickLogin={() => setAuthModalOpen(true)}
+            >
+              <SlotsPage
+                user={user}
+                onClickLogin={() => setAuthModalOpen(true)}
+              />
+            </MainLayout>
+          </Route>
+
+          <Route path="/events/slots/edit">
+            <MainLayout
+              user={user}
+              setUser={setUser}
+              onLogout={handleLogout}
+              onClickLogin={() => setAuthModalOpen(true)}
+            >
+              <EditSlotPage
+                user={user}
+                onClickLogin={() => setAuthModalOpen(true)}
+              />
+            </MainLayout>
+          </Route>
+
+          {/*  Event Search Route */}
+          <Route path="/events/search">
+            <MainLayout
+              user={user}
+              setUser={setUser}
+              onLogout={handleLogout}
+              onClickLogin={() => setAuthModalOpen(true)}
+            >
+              <EventSearchPage />
+            </MainLayout>
+          </Route>
+        </Switch>
+
+        <Route path="/interview" exact>
+          <MainLayout
+            user={user}
+            setUser={setUser}
+            onLogout={handleLogout}
+            onClickLogin={() => setAuthModalOpen(true)}
+          >
+            <InterviewPage
+              user={user}
+              selectedInterview={selectedInterview}
+              setSelectedInterview={setSelectedInterview}
+            />
+          </MainLayout>
+        </Route>
+
+        <Route path="/interview/add">
+          <MainLayout
+            user={user}
+            setUser={setUser}
+            onLogout={handleLogout}
+            onClickLogin={() => setAuthModalOpen(true)}
+          >
+            <AddInterviewPage user={user} />
+          </MainLayout>
+        </Route>
+
+        <Route path="/interview/edit">
+          <MainLayout
+            user={user}
+            setUser={setUser}
+            onLogout={handleLogout}
+            onClickLogin={() => setAuthModalOpen(true)}
+          >
+            <EditInterviewPage user={user} />
+          </MainLayout>
+        </Route>
+
+        <Route path="/job-hiring">
+          <MainLayout
+            user={user}
+            setUser={setUser}
+            onLogout={handleLogout}
+            onClickLogin={() => setAuthModalOpen(true)}
+          >
+            <JobHiringPage />
+          </MainLayout>
+        </Route>
+
+        <Route path="/manager-candidate" exact>
+          <MainLayout
+            user={user}
+            setUser={setUser}
+            onLogout={handleLogout}
+            onClickLogin={() => setAuthModalOpen(true)}
+          >
+            <ManagerHomePage user={user} />
+          </MainLayout>
+        </Route>
+
+        <Route path="/manager-transaction" exact>
+          <MainLayout
+            user={user}
+            setUser={setUser}
+            onLogout={handleLogout}
+            onClickLogin={() => setAuthModalOpen(true)}
+          >
+            <TransactionPage user={user} />
+          </MainLayout>
+        </Route>
+
+        <Route path="/system" exact>
+          <SystemLayout user={user} setUser={setUser} onLogout={handleLogout}>
+            <SystemPage user={user} />
+          </SystemLayout>
+        </Route>
+
+        <Route path="/system/manage-ta">
+          <SystemLayout user={user} setUser={setUser} onLogout={handleLogout}>
+            <ManageTaPage user={user} />
+          </SystemLayout>
+        </Route>
+
+        <Route path="/system/manage-manager">
+          <SystemLayout user={user} setUser={setUser} onLogout={handleLogout}>
+            <ManageManagerPage user={user} />
+          </SystemLayout>
+        </Route>
+
+        <Route path="/system/manage-events">
+          <SystemLayout user={user} setUser={setUser} onLogout={handleLogout}>
+            <ManageEventsPage user={user} />
+          </SystemLayout>
+        </Route>
+
+        <Route path="/system/manage-slots">
+          <SystemLayout user={user} setUser={setUser} onLogout={handleLogout}>
+            <ManageSlotsPage user={user} />
+          </SystemLayout>
+        </Route>
+
+        <Route path="/system/manage-job-hiring">
+          <SystemLayout user={user} setUser={setUser} onLogout={handleLogout}>
+            <ManageJobHiringPage />
+          </SystemLayout>
+        </Route>
+
+        <Route path="/system/pool-candidate">
+          <SystemLayout user={user} setUser={setUser} onLogout={handleLogout}>
+            <PoolCandidatePage user={user} />
+          </SystemLayout>
+        </Route>
+
+        <Route path="/system/add-link">
+          <SystemLayout user={user} setUser={setUser} onLogout={handleLogout}>
+            <AddLinkInterviewPage user={user} />
+          </SystemLayout>
+        </Route>
+
+        {/* Global Auth Modal */}
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+          onLoginSuccess={(user) => setUser(user)}
+        />
+
+        <UserInterviewDetailModal
+          interview={selectedInterview}
+          isOpen={!!selectedInterview}
+          user={user}
+          onClose={() => setSelectedInterview(null)}
+        />
+      </HashRouter>
+    );
+  };
+
+  // Render
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
