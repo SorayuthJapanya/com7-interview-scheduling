@@ -5,6 +5,10 @@ const babel = require("@babel/core");
 const SRC = path.join(__dirname, "gas");
 const DIST = path.join(__dirname, "dist", "gas");
 
+/**
+ * ฟังก์ชันหลักสำหรับ build โปรเจค
+ * ลบโฟลเดอร์ dist เก่าออก แล้วสร้างใหม่ จากนั้นเริ่มแปลงไฟล์ทั้งหมด
+ */
 async function build() {
   console.log("🔨 Building...");
   await fs.remove(DIST);
@@ -13,6 +17,14 @@ async function build() {
   console.log("✅ Build complete → dist/gas/");
 }
 
+/**
+ * วนลูปผ่านทุกไฟล์และโฟลเดอร์ใน srcDir แบบ recursive
+ * - ถ้าเป็นโฟลเดอร์ → เรียกตัวเองซ้ำ
+ * - ถ้าเป็นไฟล์ .html → ส่งไปแปลง JSX
+ * - ไฟล์อื่น → copy ตรงๆ โดยไม่แก้ไข
+ * @param {string} srcDir - โฟลเดอร์ต้นทาง
+ * @param {string} distDir - โฟลเดอร์ปลายทาง
+ */
 async function walkAndTransform(srcDir, distDir) {
   await fs.ensureDir(distDir);
   const entries = await fs.readdir(srcDir, { withFileTypes: true });
@@ -31,16 +43,26 @@ async function walkAndTransform(srcDir, distDir) {
   }
 }
 
+/**
+ * แปลงไฟล์ HTML ไฟล์เดียว:
+ * 1. ลบ script tag ของ @babel/standalone ออก (ไม่จำเป็นอีกต่อไป)
+ * 2. แปลงทุก <script type="text/babel"> → <script type="text/javascript">
+ *    โดยใช้ Babel compile JSX → plain JS
+ * 3. แปลง const/let ระดับ top-level → var เพื่อป้องกัน "already declared"
+ *    เมื่อ GAS include() นำทุกไฟล์มารวมกันในหน้าเดียว
+ * @param {string} srcPath - path ไฟล์ต้นทาง
+ * @param {string} distPath - path ไฟล์ปลายทาง
+ */
 async function transformHtml(srcPath, distPath) {
   let content = await fs.readFile(srcPath, "utf8");
 
-  // Remove @babel/standalone script tag
+  // ลบ script tag ของ @babel/standalone ออก
   content = content.replace(
     /<script[^>]*unpkg\.com\/@babel\/standalone[^>]*><\/script>[ \t]*\n?/g,
     ""
   );
 
-  // Compile JSX → plain JS
+  // แปลง JSX → plain JS ด้วย Babel
   content = content.replace(
     /<script\s+type="text\/babel">([\s\S]*?)<\/script>/g,
     (_, jsx) => {
@@ -49,9 +71,8 @@ async function transformHtml(srcPath, distPath) {
           presets: ["@babel/preset-react"],
           filename: srcPath,
         });
-        // Top-level const/let → var: prevents "already declared" errors when GAS
-        // inlines all scripts into one page, while keeping components in global scope.
-        // Only replaces lines starting at column 0 (top-level); indented code is untouched.
+        // แปลง const/let ระดับ top-level (ต้นบรรทัด) → var
+        // เพื่อให้ redeclare ข้ามไฟล์ได้โดยไม่ error และ component ยังอยู่ใน global scope
         const safeCode = code.replace(/^const /gm, "var ").replace(/^let /gm, "var ");
         return `<script type="text/javascript">${safeCode}</script>`;
       } catch (err) {
