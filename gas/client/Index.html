@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <!-- SweetAlert2 (Custom Modal UI) -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11" defer></script>
+
+    <!-- Flatpickr -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/th.js" defer></script>
+
+    <!-- React 18, React dom and babel -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- React Router -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-router-dom/5.3.0/react-router-dom.min.js"></script>
+
+    <!-- Style with DaistUI and TailwindCSS CDN -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/daisyui@5"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+    <!-- Addding DaisyUI theme -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+
+    <!-- Font Prompt -->
+    <link
+      href="https://fonts.googleapis.com/css?family=Prompt:100,100italic,200,200italic,300,300italic,regular,italic,500,500italic,600,600italic,700,700italic,800,800italic,900,900italic"
+      rel="stylesheet"
+    />
+
+    <!-- Font Awesome font use icon -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css"
+    />
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+
+    <style type="text/tailwindcss">
+      html {
+        scroll-behavior: smooth;
+      }
+
+      * {
+        font-family: "Prompt", sans-serif;
+      }
+
+      .bg-hero {
+        background-image: linear-gradient(
+            rgba(0, 0, 0, 0.6),
+            rgba(0, 0, 0, 0.6)
+          ),
+          url("https://images.unsplash.com/photo-1573497620053-ea5300f94f21?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D");
+      }
+
+      @theme {
+        /* --- 1. Define Animations (ตั้งชื่อ class ที่จะใช้) --- */
+        --animate-scale-up: scale-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        --animate-fade-in: fade-in 0.3s ease-out forwards;
+        --animate-fade-in-up: fade-in-up 0.6s ease-out forwards;
+        --animate-select-popup: select-popup 0.3s ease-out forwards;
+        --animate-fade-in-right: fade-in-right 0.4s ease-out forwards;
+        --animate-slide-down: slide-down 0.3s ease-out forwards;
+
+        /* --- 2. Define Keyframes (กำหนดท่าทาง) --- */
+
+        @keyframes scale-up {
+          0% {
+            opacity: 0;
+            transform: scale(0.95);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+
+        @keyframes fade-in {
+          0% {
+            opacity: 0;
+          }
+          100% {
+            opacity: 1;
+          }
+        }
+
+        @keyframes fade-in-up {
+          0% {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes select-popup {
+          0% {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes fade-in-right {
+          0% {
+            opacity: 0;
+            transform: translateX(-20px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        @keyframes slide-down {
+          0% {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      }
+
+      @layer components {
+        .padding-container {
+          @apply px-6 sm:px-16 md:px-24 lg:px-32 xl:px-40 2xl:px-48;
+        }
+      }
+    </style>
+  </head>
+  <body data-theme="light" className="overflow-hidden">
+    <div id="root" className="text-base-content"></div>
+
+    <!-- client/src/components/shared -->
+    <?!= include('client/src/components/shared/Navbar'); ?>
+    <?!= include('client/src/components/shared/InterviewNavbar'); ?>
+    <?!= include('client/src/components/shared/Sidebar'); ?>
+    <?!= include('client/src/components/shared/Footer'); ?>
+
+    <!-- client/src/components/ui -->
+    <?!= include('client/src/components/ui/Loader'); ?>
+    <?!= include('client/src/components/ui/EventCards'); ?>
+    <?!= include('client/src/components/ui/EventDropdown'); ?>
+    <?!= include('client/src/components/ui/DatePagination'); ?>
+    <?!= include('client/src/components/ui/FormSection'); ?>
+    <?!= include('client/src/components/ui/InputFeild'); ?>
+    <?!= include('client/src/components/ui/SelectFeild'); ?>
+    <?!= include('client/src/components/ui/InterviewCard'); ?>
+    <?!= include('client/src/components/ui/SearchableSelect'); ?>
+    <?!= include('client/src/components/ui/KpiCard'); ?>
+    <?!= include('client/src/components/ui/ChartCard'); ?>
+    <?!= include('client/src/components/ui/PagePagination'); ?>
+    <?!= include('client/src/components/ui/SystemEventCard'); ?>
+    <?!= include('client/src/components/ui/FlatpickrInput'); ?>
+
+    <!-- client/src/components/ui/modal -->
+    <?!= include('client/src/components/ui/modal/AuthModal'); ?>
+    <?!= include('client/src/components/ui/modal/InterviewDetailModal'); ?>
+    <?!= include('client/src/components/ui/modal/AddTaModal'); ?>
+    <?!= include('client/src/components/ui/modal/EditTaModal'); ?>
+    <?!= include('client/src/components/ui/modal/AddEventModal'); ?>
+    <?!= include('client/src/components/ui/modal/EditEventModal'); ?>
+    <?!= include('client/src/components/ui/modal/AddSlotModal'); ?>
+    <?!= include('client/src/components/ui/modal/EditSlotModal'); ?>
+    <?!= include('client/src/components/ui/modal/UserInterviewDetailModal'); ?>
+    <?!= include('client/src/components/ui/modal/AddManagerModal'); ?>
+    <?!= include('client/src/components/ui/modal/EditManagerModal'); ?>
+    <?!= include('client/src/components/ui/modal/TransactionEventModal'); ?>
+    <?!= include('client/src/components/ui/modal/AddJobHiringModal'); ?>
+
+    <!-- client/src/components/sections -->
+    <?!= include('client/src/components/sections/HeroSection'); ?>
+    <?!= include('client/src/components/sections/EventSection'); ?>
+    <?!= include('client/src/components/sections/PreviewJobHiring'); ?>
+
+    <!-- client/src/components -->
+    <?!= include('client/src/components/Header'); ?>
+    <?!= include('client/src/components/SystemHeader'); ?>
+    <?!= include('client/src/components/HeroSearchForm'); ?>
+    <?!= include('client/src/components/SlotEventSearch'); ?>
+    <?!= include('client/src/components/EventList'); ?>
+    <?!= include('client/src/components/CandidateAuthForm'); ?>
+    <?!= include('client/src/components/ManagerAuthForm'); ?>
+    <?!= include('client/src/components/AdminLoginForm'); ?>
+    <?!= include('client/src/components/SlotsList'); ?>
+    <?!= include('client/src/components/TaTable'); ?>
+    <?!= include('client/src/components/CandidateTable'); ?>
+    <?!= include('client/src/components/TransactionTable'); ?>
+    <?!= include('client/src/components/EventBookingForm'); ?>
+    <?!= include('client/src/components/CandidateForgotPasswordForm'); ?>
+    <?!= include('client/src/components/ManagerTable'); ?>
+
+    <!-- client/src/layouts -->
+    <?!= include('client/src/layouts/MainLayout'); ?>
+    <?!= include('client/src/layouts/SystemLayout'); ?>
+
+    <!-- client/src/pages -->
+    <?!= include('client/src/pages/HomePage'); ?>
+    <?!= include('client/src/pages/EventsPage'); ?>
+    <?!= include('client/src/pages/EventSearchPage'); ?>
+    <?!= include('client/src/pages/SlotsPage'); ?>
+    <?!= include('client/src/pages/InterviewPage'); ?>
+    <?!= include('client/src/pages/AddInterviewPage'); ?>
+    <?!= include('client/src/pages/EditInterviewPage'); ?>
+    <?!= include('client/src/pages/EditSlotPage'); ?>
+  <?!= include('client/src/pages/JobHiringPage'); ?>
+
+    <!-- client/src/pages/system -->
+    <?!= include('client/src/pages/system/SystemPage'); ?>
+    <?!= include('client/src/pages/system/ManageTaPage'); ?>
+    <?!= include('client/src/pages/system/ManageEventsPage'); ?>
+    <?!= include('client/src/pages/system/PoolCandidatePage'); ?>
+    <?!= include('client/src/pages/system/ManageSlotsPage'); ?>
+    <?!= include('client/src/pages/system/AddLinkInterviewPage'); ?>
+    <?!= include('client/src/pages/system/ManageManagerPage'); ?>
+    <?!= include('client/src/pages/system/ManageJobHiringPage'); ?>
+    
+    <!-- client/src/pages/manager -->
+    <?!= include('client/src/pages/manager/ManagerHomePage'); ?>
+    <?!= include('client/src/pages/manager/TransactionPage'); ?>
+
+    <!-- Render -->
+    <?!= include('client/src/App'); ?>
+  </body>
+</html>
