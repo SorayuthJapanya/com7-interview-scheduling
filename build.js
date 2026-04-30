@@ -49,7 +49,11 @@ async function transformHtml(srcPath, distPath) {
           presets: ["@babel/preset-react"],
           filename: srcPath,
         });
-        return `<script type="text/javascript">(function(){\n${code}\n})();</script>`;
+        // Top-level const/let → var: prevents "already declared" errors when GAS
+        // inlines all scripts into one page, while keeping components in global scope.
+        // Only replaces lines starting at column 0 (top-level); indented code is untouched.
+        const safeCode = code.replace(/^const /gm, "var ").replace(/^let /gm, "var ");
+        return `<script type="text/javascript">${safeCode}</script>`;
       } catch (err) {
         console.error(
           `\n❌ Babel error in ${path.relative(__dirname, srcPath)}:`
