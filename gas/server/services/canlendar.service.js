@@ -1,5 +1,5 @@
 const WEBSITE_URL = "https://script.google.com/macros/s/AKfycbxgJs3sRLvQH9ArJzhwimyu1fwkYSEDBHw_CxAfiZHA3jDdOqTHSyFZP09OMcPyMqZj2g/exec";
-const MAIN_EMAIL = "sorayuthjaapanya@gmail.com"
+const MAIN_EMAIL = "recruitmentcom7.4@gmail.com"
 
 function createCalendarEvent(eventData) {
   if (!eventData) {
@@ -66,10 +66,6 @@ Com7 (Public) Company Limited
   newEvent.addGuest(email);
 
   return newEvent.getId();
-}
-
-function manualCreateCalendarEvent(data) {
-  
 }
 
 function updateCalendarEvent(updateData) {

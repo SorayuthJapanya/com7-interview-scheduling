@@ -23,59 +23,71 @@
   const formatToThaiDate = (dateObj) => {
     if (!dateObj) return "";
     const d = new Date(dateObj);
-    const day = d.getDate(); // 17
-    const month = d.getMonth() + 1; // 2
-    const thaiYear = d.getFullYear() + 543; // 2569
+    const day = d.getDate();
+    const month = d.getMonth() + 1;
+    const thaiYear = d.getFullYear() + 543;
     return `${day}/${month}/${thaiYear}`;
   };
+
+  // Fixed shop names for ONLINE events — must match Bu_Name values in Slots sheet exactly.
+  const ONLINE_SHOP_OPTIONS = ["True", "Studio7", "BaNaNa"];
+
+  const PROVINCE_CACHE_KEY = "thai_province_data";
+  const PROVINCE_API_URL =
+    "https://raw.githubusercontent.com/kongvut/thai-province-data/refs/heads/master/api/latest/province.json";
 
   const EventBookingForm = ({ events = [], isLoading, user, onClickLogin }) => {
     const [selectedEventId, setSelectedEventId] = useState("");
     const [selectJobType, setSelectJobType] = useState("");
     const [selectedBuName, setSelectedBuName] = useState("");
+    const [selectedProvince, setSelectedProvince] = useState(""); // ONLINE only
+    const [provinceOptions, setProvinceOptions] = useState([]);
+    const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
     const [selectedDate, setSelectedDate] = useState("");
     const [flatpickrDate, setFlatpickrDate] = useState(null);
     const [selectedSlotId, setSelectedSlotId] = useState("");
     const history = useHistory();
 
-    // --- Derived Memorize Data ---
+    // --- Derived Data ---
 
-    // Current Event
     const currentEvent = useMemo(
       () => events.find((event) => event.eventId === selectedEventId),
       [events, selectedEventId],
     );
 
-    useEffect(() => {
-      if (currentEvent?.eventJobType) {
-        setSelectJobType(currentEvent.eventJobType);
-      } else {
-        setSelectJobType("");
-      }
-    }, [currentEvent]);
+    // O(1) flag — no memoization needed.
+    const isOnline = currentEvent?.eventType === "ONLINE";
 
-    // Available BU Names
+    // For ONLINE: slot filtering uses the BU region derived from the selected province.
+    // For ONSITE: slot filtering uses the selected branch/region directly.
+    const selectedRegion = getRegionByProvince(selectedProvince);
+    const effectiveBuName = isOnline ? selectedRegion : selectedBuName;
+
+    // BU names extracted from slot data — used as options for ONSITE.
     const availableBuNames = useMemo(() => {
       if (!currentEvent) return [];
 
       const buSet = new Set();
       currentEvent.slots.forEach((slot) => {
         slot.bus.forEach((bu) => {
-          if (bu.buName) {
-            buSet.add(bu.buName.trim());
-          }
+          if (bu.buName) buSet.add(bu.buName.trim());
         });
       });
 
       return Array.from(buSet).sort();
     }, [currentEvent]);
 
-    // Available Dates
+    // Second-field options:
+    //   ONLINE → fixed shop list
+    //   ONSITE → derived from slot data
+    const buOptions = isOnline ? ONLINE_SHOP_OPTIONS : availableBuNames;
+
+    // Available Dates — ONLINE filters by BU region (from province); ONSITE by selected branch.
     const availableDates = useMemo(() => {
-      if (!currentEvent || !selectedBuName) return [];
+      if (!currentEvent || !effectiveBuName) return [];
 
       const validSlots = currentEvent.slots.filter((slot) =>
-        slot.bus.some((bu) => bu.buName === selectedBuName),
+        slot.bus.some((bu) => bu.buName === effectiveBuName),
       );
 
       const datesSet = new Set();
@@ -84,9 +96,9 @@
       });
 
       return Array.from(datesSet).sort();
-    }, [currentEvent, selectedBuName]);
+    }, [currentEvent, effectiveBuName]);
 
-    // Date Config - คำนวณ min/max
+    // Date Config — min/max/enable for Flatpickr
     const dateConfig = useMemo(() => {
       if (!availableDates || availableDates.length === 0)
         return { min: null, max: null, enable: [] };
@@ -106,34 +118,83 @@
       };
     }, [availableDates]);
 
-    // Available Times
+    // Available Times — slots matching both effectiveBuName and selected date
     const availableTimes = useMemo(() => {
-      if (!currentEvent || !selectedBuName || !selectedDate) return [];
+      if (!currentEvent || !effectiveBuName || !selectedDate) return [];
 
       return currentEvent.slots.filter((slot) => {
         const isDateMatch = slot.date === selectedDate;
-        const hasBuMatch = slot.bus.some((bu) => bu.buName === selectedBuName);
+        const hasBuMatch = slot.bus.some((bu) => bu.buName === effectiveBuName);
         return isDateMatch && hasBuMatch;
       });
-    }, [currentEvent, selectedBuName, selectedDate]);
+    }, [currentEvent, effectiveBuName, selectedDate]);
 
+    // Specific allocationId (UUID) for the effectiveBuName within the selected slot
     const finalBuId = useMemo(() => {
-      if (!selectedSlotId || !selectedBuName) return null;
+      if (!selectedSlotId || !effectiveBuName) return null;
 
       const slot = availableTimes.find(
         (slot) => slot.slotId === selectedSlotId,
       );
       if (!slot) return null;
 
-      const targetBU = slot.bus.find((bu) => bu.buName === selectedBuName);
+      const targetBU = slot.bus.find((bu) => bu.buName === effectiveBuName);
       return targetBU ? targetBU.allocationId : null;
-    }, [availableTimes, selectedSlotId, selectedBuName]);
+    }, [availableTimes, selectedSlotId, effectiveBuName]);
 
-    // --- Handlers (Reset) ---
+    // --- Province API ---
+
+    const fetchProvinces = async () => {
+      // Return from sessionStorage cache if available (shared across pages in same session)
+      const cached = sessionStorage.getItem(PROVINCE_CACHE_KEY);
+      if (cached) {
+        setProvinceOptions(JSON.parse(cached));
+        return;
+      }
+
+      setIsLoadingProvinces(true);
+      try {
+        const res = await fetch(PROVINCE_API_URL);
+        const data = await res.json();
+        const names = data
+          .map((p) => p.name_th)
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b, "th"));
+
+        sessionStorage.setItem(PROVINCE_CACHE_KEY, JSON.stringify(names));
+        setProvinceOptions(names);
+      } catch (err) {
+        console.error("Failed to fetch province data:", err);
+      } finally {
+        setIsLoadingProvinces(false);
+      }
+    };
+
+    // --- Effects ---
+
+    // Sync job type whenever the selected event changes.
+    useEffect(() => {
+      if (currentEvent?.eventJobType) {
+        setSelectJobType(currentEvent.eventJobType);
+      } else {
+        setSelectJobType("");
+      }
+    }, [currentEvent]);
+
+    // Lazy-load provinces only when an ONLINE event is selected.
+    // sessionStorage cache means this network call fires at most once per browser session.
+    useEffect(() => {
+      if (isOnline && provinceOptions.length === 0) {
+        fetchProvinces();
+      }
+    }, [isOnline]);
+
+    // --- Handlers ---
 
     const handleEventChange = (event) => {
       setSelectedEventId(event.target.value);
       setSelectedBuName("");
+      setSelectedProvince("");
       setSelectedDate("");
       setFlatpickrDate(null);
       setSelectedSlotId("");
@@ -146,12 +207,10 @@
       setSelectedSlotId("");
     };
 
-    const handleDateChange = (dates) => {
-      if (dates && dates.length > 0) {
-        setFlatpickrDate(dates);
-
-        const thaiDateStr = formatToThaiDate(dates);
-        setSelectedDate(thaiDateStr);
+    const handleDateChange = (dateStr) => {
+      if (dateStr) {
+        setFlatpickrDate(dateStr);
+        setSelectedDate(formatToThaiDate(new Date(dateStr)));
       } else {
         setFlatpickrDate(null);
         setSelectedDate("");
@@ -166,13 +225,15 @@
         return;
       }
 
-      if (
+      const isMissingRequired =
         !selectedEventId ||
         !selectedBuName ||
         !selectedSlotId ||
         !finalBuId ||
-        !currentEvent
-      ) {
+        !currentEvent ||
+        (isOnline && !selectedProvince);
+
+      if (isMissingRequired) {
         Swal.fire({
           icon: "warning",
           title: "กรุณากรอกข้อมูลให้ครบ",
@@ -187,7 +248,9 @@
       if (selectJobType) params.append("eventJobType", selectJobType);
       if (finalBuId) params.append("slotId", finalBuId);
       if (currentEvent) params.append("eventName", currentEvent.eventName);
-      if (selectedBuName) params.append("buName", selectedBuName);
+      if (selectedBuName) params.append("buName", effectiveBuName);
+      if (isOnline && selectedBuName) params.append("shop", selectedBuName);
+      if (isOnline && selectedProvince) params.append("preferredProvince", selectedProvince);
       if (selectedSlotId) {
         const [date, startTime, endTime] = selectedSlotId.split("_");
         const timePeriod = `${startTime}-${endTime}`;
@@ -214,9 +277,12 @@
         onSubmit={handleSubmit}
         className="w-full bg-base-100 py-6 px-6 lg:px-12 rounded-lg shadow-md gap-4 lg:gap-6"
       >
-        <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Event DropDown */}
-          {/* 1. Event */}
+        <div
+          className={`w-full grid grid-cols-1 md:grid-cols-2 gap-4 ${
+            isOnline ? "lg:grid-cols-5" : "lg:grid-cols-4"
+          }`}
+        >
+          {/* 1. Event — always visible */}
           <div className="w-full">
             <label className="text-sm font-medium text-gray-500 mb-1.5 ml-1 block">
               เลือกอีเวนต์
@@ -238,10 +304,10 @@
             </select>
           </div>
 
-          {/* Event DropDown */}
+          {/* 2. Shop (ONLINE) / Branch (ONSITE) */}
           <div className="w-full">
             <label className="text-sm font-medium text-gray-500 mb-1.5 ml-1 block">
-              เลือกสาขา/ภูมิภาค
+              {isOnline ? "เลือก Shop ที่ต้องการ" : "เลือกสาขา/ภูมิภาค"}
             </label>
             <select
               className="select select-bordered w-full"
@@ -250,9 +316,9 @@
               disabled={!selectedEventId}
             >
               <option value="" disabled>
-                เลือกสาขา/ภูมิภาค
+                {isOnline ? "เลือก Shop" : "เลือกสาขา/ภูมิภาค"}
               </option>
-              {availableBuNames.map((name) => (
+              {buOptions.map((name) => (
                 <option key={name} value={name}>
                   {name}
                 </option>
@@ -260,13 +326,30 @@
             </select>
           </div>
 
-          {/* Date picker */}
+          {/* 3. Province — ONLINE only; auto-derives BU region for slot filtering */}
+          {isOnline && (
+            <div className="w-full">
+              <SearchableSelect
+                name="preferredProvince"
+                label="จังหวัดที่ต้องการ"
+                value={selectedProvince}
+                onChange={(e) => setSelectedProvince(e.target.value)}
+                options={provinceOptions}
+                disabled={!selectedEventId || isLoadingProvinces}
+                placeholder={
+                  isLoadingProvinces ? "กำลังโหลด..." : "พิมพ์เพื่อค้นหาจังหวัด"
+                }
+              />
+            </div>
+          )}
+
+          {/* 4. Date */}
           <div className="w-full">
             <label className="text-sm font-medium text-gray-500 mb-1.5 ml-1 block">
               เลือกวันที่
             </label>
             <FlatpickrInput
-              key={selectedBuName}
+              key={effectiveBuName}
               value={flatpickrDate}
               onChange={handleDateChange}
               options={{
@@ -276,11 +359,11 @@
                 enable: dateConfig.enable,
                 disableMobile: true,
               }}
-              disabled={!selectedBuName}
+              disabled={!effectiveBuName}
             />
           </div>
 
-          {/* Time Period DropDown */}
+          {/* 5. Time Slot */}
           <div className="w-full">
             <label className="text-sm font-medium text-gray-500 mb-1.5 ml-1 block">
               เลือกช่วงเวลา
@@ -306,7 +389,7 @@
         <div className="mt-6 w-full flex justify-center">
           <button
             type="submit"
-            className="w-full flex items-center justify-center gap-2 text-nowrap bg-emerald-600 text-white rounded-box px-6 py-2.5 transform transition-all duration-300 hover:bg-emerald-500 cursor-pointer font-normal "
+            className="w-full flex items-center justify-center gap-2 text-nowrap bg-emerald-600 text-white rounded-box px-6 py-2.5 transform transition-all duration-300 hover:bg-emerald-500 cursor-pointer font-normal"
           >
             <i className="fa-solid fa-magnifying-glass text-sm"></i>
             <p>ค้นหาอีเวนต์</p>

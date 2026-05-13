@@ -82,16 +82,22 @@
               action,
             };
 
-            return new Promise((resolve, reject) => {
+            return new Promise((resolve) => {
               google.script.run
-                .withSuccessHandler((res) => resolve(res))
-                .withFailureHandler((err) => reject(err))
+                .withSuccessHandler((res) => {
+                  if (!res.success) {
+                    Swal.showValidationMessage(`เกิดข้อผิดพลาด: ${res.message || "ลบข้อมูลไม่สำเร็จ"}`);
+                    resolve(false);
+                  } else {
+                    resolve(res);
+                  }
+                })
+                .withFailureHandler((err) => {
+                  Swal.showValidationMessage(`เกิดข้อผิดพลาด: ${err.message || err}`);
+                  resolve(false);
+                })
                 .deleteSlotsByTimePeriod(payload);
             });
-
-            if (!response.success) {
-              throw new Error(response.message || "ลบข้อมูลไม่สำเร็จ");
-            }
           } catch (error) {
             Swal.showValidationMessage(`เกิดข้อผิดพลาด: ${error.message}`);
           }

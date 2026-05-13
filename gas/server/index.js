@@ -10,7 +10,8 @@ const MAIN_SHEETS = {
   MANAGERS: "Managers",
   EVENTS: "Events",
   JOB_TYPE: "Job_Type",
-  JOB_HIRING_POSTER: "Job_Hiring_Poster"
+  JOB_HIRING_POSTER: "Job_Hiring_Poster",
+  PROVINCE: "Province"
 };
 
 const EVENT_SHEETS = {

@@ -457,9 +457,27 @@ function deleteSlotsByTimePeriod(deleteData) {
     const dataRange = slotSheet.getDataRange();
     const dataValues = dataRange.getValues();
 
-    const targetDate = new Date(date).toLocaleDateString("th-TH");
-    const targetStart = startTime;
-    const targetEnd = endTime;
+    const targetDateStr = Utilities.formatDate(
+      new Date(date),
+      "Asia/Bangkok",
+      "yyyy-MM-dd",
+    );
+
+    // Normalize a time value to "HH:mm" — handles both GAS Date objects
+    // (returned when Sheets auto-detects a time cell) and plain "HH:mm" strings.
+    // Also handles ISO strings that JSON serialisation produces from Date objects.
+    const normalizeTime = (val) => {
+      if (!val) return "";
+      if (val instanceof Date)
+        return Utilities.formatDate(val, "Asia/Bangkok", "HH:mm");
+      const s = val.toString().trim();
+      if (s.includes("T"))
+        return Utilities.formatDate(new Date(s), "Asia/Bangkok", "HH:mm");
+      return s;
+    };
+
+    const targetStart = normalizeTime(startTime);
+    const targetEnd = normalizeTime(endTime);
 
     let deleteCount = 0;
 
@@ -467,12 +485,29 @@ function deleteSlotsByTimePeriod(deleteData) {
     for (let i = dataValues.length - 1; i >= 0; i--) {
       const row = dataValues[i];
 
-      const storeDate = normalizeDate(row[1]).toLocaleDateString("th-TH");
-      const storeStart = formatTimeTh(row[2]);
-      const storeEnd = formatTimeTh(row[3]);
+      // Normalize stored date — handles both Date objects and Thai date strings ("d/M/YYYY BE")
+      let storeDateStr;
+      if (row[1] instanceof Date) {
+        storeDateStr = Utilities.formatDate(row[1], "Asia/Bangkok", "yyyy-MM-dd");
+      } else {
+        const parts = row[1].toString().split("/");
+        if (parts.length === 3) {
+          let y = parseInt(parts[2], 10);
+          if (y > 2400) y -= 543;
+          const parsed = new Date(y, parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+          storeDateStr = isNaN(parsed.getTime())
+            ? ""
+            : Utilities.formatDate(parsed, "Asia/Bangkok", "yyyy-MM-dd");
+        } else {
+          storeDateStr = "";
+        }
+      }
+
+      const storeStart = normalizeTime(row[2]);
+      const storeEnd = normalizeTime(row[3]);
 
       if (
-        storeDate === targetDate &&
+        storeDateStr === targetDateStr &&
         storeStart === targetStart &&
         storeEnd === targetEnd
       ) {
@@ -481,13 +516,15 @@ function deleteSlotsByTimePeriod(deleteData) {
       }
     }
 
-    if (deleteCount > 0) {
-      const historySheet = ss.getSheetByName(EVENT_SHEETS.HISTORY);
-      const now = new Date().toLocaleString("th-TH", {
-        timeZone: "Asia/Bangkok",
-      });
-      historySheet.appendRow([now, userName, action]);
+    if (deleteCount === 0) {
+      return { success: false, message: "ไม่พบสล็อตที่ตรงกัน" };
     }
+
+    const historySheet = ss.getSheetByName(EVENT_SHEETS.HISTORY);
+    const now = new Date().toLocaleString("th-TH", {
+      timeZone: "Asia/Bangkok",
+    });
+    historySheet.appendRow([now, userName, action]);
 
     return { success: true, message: "ลบสล็อตช่วงเวลานี้สําเร็จ" };
   } catch (error) {

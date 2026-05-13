@@ -17,7 +17,13 @@
     const eventName = query.get("eventName") || "";
     const timePeriod = query.get("time") || "";
     const buName = query.get("buName") || "";
+    const shop = query.get("shop") || "";
+    const preferredProvince = query.get("preferredProvince") || "";
     const date = query.get("date") || "";
+
+    const effectiveProvince = preferredProvince ? preferredProvince : "กรุงเทพมหานคร";
+
+    const effectiveDistrict = preferredProvince ? "" : "เขตบางนา";
 
     // 2. Initial State (จำลองข้อมูลตามที่คุณให้มา)
     const initialFormState = {
@@ -50,10 +56,9 @@
       workDescription: "",
       saleExperience: 0,
       positionType: eventJobType || "",
-      positionApplied:
-        eventJobType === "พนักงานประจำหน้าร้านสาขา True" ? eventJobType : "",
-      preferredProvince: "",
-      preferredDistrict: "",
+      positionApplied: "",
+      preferredProvince: effectiveProvince,
+      preferredDistrict: effectiveDistrict,
       expectedSalary: 0,
       availableStartDate: "",
     };
@@ -188,7 +193,7 @@
       const result = await Swal.fire({
         icon: "question",
         title: "ยืนยันความถูกต้อง",
-        text: `คุณต้องการลงทะเบียนสัมภาษณ์สำหรับ ${eventName} วันที่ ${date} ช่วงเวลา ${timePeriod} น. ใช่หรือไม่`,
+        text: `คุณต้องการลงทะเบียนสัมภาษณ์สำหรับ ${eventName} (${shop}) วันที่ ${date} ช่วงเวลา ${timePeriod} น. ใช่หรือไม่`,
         showCancelButton: true,
         confirmButtonText: "ใช่ ลงทะเบียนเลย",
         cancelButtonText: "ยกเลิก",
@@ -200,7 +205,7 @@
 
       Swal.fire({
         title: "กำลังบันทึกข้อมูล...",
-        text: `กำลังลงทะเบียนสัมภาษณ์สำหรับ ${eventName} วันที่ ${date} ช่วงเวลา ${timePeriod} น.`,
+        text: `กำลังลงทะเบียนสัมภาษณ์สำหรับ ${eventName} (${shop}) วันที่ ${date} ช่วงเวลา ${timePeriod} น.`,
         allowOutsideClick: false,
         didOpen: () => {
           Swal.showLoading();
@@ -222,6 +227,7 @@
 
         const payload = {
           ...formData,
+          shop: shop,
           militaryStatus:
             formData.military === "ได้รับการยกเว้น"
               ? `${formData.military} เนื่องจาก: ${formData.militaryReason}`
@@ -330,7 +336,7 @@
                 ลงทะเบียนผู้สมัครสัมภาษณ์
               </h1>
               <h3 className="text-base md:text-lg">
-                {eventName} ({buName}) วันที่ {date} ช่วงเวลา {timePeriod} น.
+                {eventName} ({shop}) วันที่ {date} ช่วงเวลา {timePeriod} น.
               </h3>
               <p className="text-xs sm:text-sm text-gray-500">
                 * หลังจากบันทึกข้อมูลเรียบร้อย
@@ -375,7 +381,6 @@
                   onChange={handleChange}
                   placeholder="ตำแหน่งที่สมัคร"
                   colSpan={2}
-                  readOnly={eventJobType === "พนักงานประจำหน้าร้านสาขา True"}
                   required
                 />
               )}
@@ -387,7 +392,7 @@
                 value={formData.preferredProvince || ""}
                 onChange={handleChange}
                 options={isLoadingLocation ? [] : provinceOptions}
-                disabled={isLoadingLocation}
+                disabled
                 colSpan={1}
                 required
               />
@@ -399,7 +404,7 @@
                 value={formData.preferredDistrict || ""}
                 onChange={handleChange}
                 options={districtOptions}
-                disabled={isLoadingLocation || !formData.preferredProvince}
+                disabled={isLoadingLocation || !formData.preferredProvince || eventJobType !== "พนักงานประจำหน้าร้านสาขา True & Studio7 & BaNaNa"}
                 colSpan={1}
                 required
               />

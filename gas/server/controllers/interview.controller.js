@@ -46,6 +46,7 @@ function createInterview(interviewData) {
       preferredDistrict,
       expectedSalary,
       availableStartDate,
+      shop,
       file,
     } = interviewData;
 
@@ -194,9 +195,9 @@ function createInterview(interviewData) {
     const emailValue = String(email).toLowerCase();
     const formattedBirthDate = new Date(birthdate).toLocaleDateString("th-Th");
 
-    const formattedAvailableStartDate = new Date(
-      availableStartDate,
-    ).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok" });
+    const formattedAvailableStartDate = availableStartDate
+      ? new Date(availableStartDate).toLocaleDateString("th-TH")
+      : "";
 
     // Create new interview initial row (without calendar_id first)
     const newInterview = [
@@ -205,6 +206,7 @@ function createInterview(interviewData) {
       candidateId,
       interviewDate,
       timePeriod,
+      shop || "",
       buName,
       fullname,
       nickname,
@@ -317,11 +319,11 @@ function processInterviewExtras(payload) {
 
       const dataForPdf = {
         profileImageUrl: candidate ? candidate.Profile_Url : "",
-        formattedBirthDate: new Date(interview.Birthdate).toLocaleDateString(
+        formattedBirthDate: parseThaiDateTime(interview.Birthdate).toLocaleDateString(
           "th-TH",
           { day: "numeric", month: "long", year: "numeric" },
         ),
-        formattedStartDate: new Date(
+        formattedStartDate: parseThaiDateTime(
           interview.Available_Start_Date,
         ).toLocaleDateString("th-TH", {
           day: "numeric",
@@ -359,9 +361,9 @@ function processInterviewExtras(payload) {
       };
 
       const fileUrl = createInterviewPDF(dataForPdf);
-      if (fileUrl) {
+      if (fileUrl && fileUrl.success) {
         previewUrl = fileUrl.embedUrl;
-        interviewSheet.getRange(actualRow, 37).setValue(previewUrl);
+        interviewSheet.getRange(actualRow, 38).setValue(previewUrl);
       }
     }
 
@@ -392,7 +394,7 @@ function processInterviewExtras(payload) {
 
       const calendar_id = createCalendarEvent(calendarPayload);
       if (calendar_id) {
-        interviewSheet.getRange(actualRow, 39).setValue(calendar_id);
+        interviewSheet.getRange(actualRow, 40).setValue(calendar_id);
       }
 
       const payloadEmail = {
@@ -401,7 +403,7 @@ function processInterviewExtras(payload) {
         buName: slot.Bu_Name,
         fullname: interview.Fullname,
         date: emailDate,
-        timePeriod: interview.Time_Period,
+        timePeriod: interview.Interview_Period,
         type: event.Event_Type,
         location: event.Location,
       };
@@ -856,32 +858,33 @@ function updateDetailInterview(updateData) {
     const index = {
       slotId: 1,
       candidateId: 2,
-      buName: 5,
-      nickname: 7,
-      birthdate: 8,
-      age: 9,
-      gender: 10,
-      weight: 11,
-      height: 12,
-      nationality: 13,
-      maritalStatus: 15,
-      militaryStatus: 16,
-      currentAddress: 17,
-      highestEducation: 21,
-      institution: 22,
-      faculty: 23,
-      major: 24,
-      workLocation: 25,
-      workPeriod: 26,
-      workPosition: 27,
-      workDescription: 28,
-      saleExperience: 29,
-      positionType: 30,
-      positionApplied: 31,
-      preferredProvince: 32,
-      preferredDistrict: 33,
-      expectedSalary: 34,
-      availableStartDate: 35,
+      shop: 5,
+      buName: 6,
+      nickname: 8,
+      birthdate: 9,
+      age: 10,
+      gender: 11,
+      weight: 12,
+      height: 13,
+      nationality: 14,
+      maritalStatus: 16,
+      militaryStatus: 17,
+      currentAddress: 18,
+      highestEducation: 22,
+      institution: 23,
+      faculty: 24,
+      major: 25,
+      workLocation: 26,
+      workPeriod: 27,
+      workPosition: 28,
+      workDescription: 29,
+      saleExperience: 30,
+      positionType: 31,
+      positionApplied: 32,
+      preferredProvince: 33,
+      preferredDistrict: 34,
+      expectedSalary: 35,
+      availableStartDate: 36,
     };
 
     if (!interview) {
@@ -919,8 +922,8 @@ function updateDetailInterview(updateData) {
     // if have file
     if (file) {
       // delete old file
-      if (interview[36]) {
-        deleteFileByUrl(interview[36]);
+      if (interview[37]) {
+        deleteFileByUrl(interview[37]);
       }
 
       // create new file url
@@ -932,7 +935,7 @@ function updateDetailInterview(updateData) {
 
       // update resume url directly in the interview row array
       if (fileUrl) {
-        interview[36] = fileUrl.embedUrl;
+        interview[37] = fileUrl.embedUrl;
         modified = true;
       }
     }
@@ -968,9 +971,9 @@ function updateDetailInterview(updateData) {
       }
     });
 
-    if (interview[18]) {
-      const rawPhone = String(interview[18]).replace(/^'+/, "");
-      interview[18] = `'${rawPhone}`;
+    if (interview[19]) {
+      const rawPhone = String(interview[19]).replace(/^'+/, "");
+      interview[19] = `'${rawPhone}`;
     }
 
     // if not modified
@@ -1153,9 +1156,9 @@ function updateSlotInterview(updateData) {
       };
     }
 
-    if (interview[18]) {
-      const rawPhone = String(interview[18]).replace(/^'+/, "");
-      interview[18] = `'${rawPhone}`;
+    if (interview[19]) {
+      const rawPhone = String(interview[19]).replace(/^'+/, "");
+      interview[19] = `'${rawPhone}`;
     }
 
     // update new capacity in old slot

@@ -7,6 +7,7 @@ const SHEEET_STUCTURE = [
       "Candidate_Id",
       "Interview_Date",
       "Interview_Period",
+      "Shop",
       "Bu_Name",
       "Fullname",
       "Nickname",

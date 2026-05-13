@@ -189,12 +189,27 @@ function getEventAndSlots(data) {
       // Specific date requested — single read
       const slots = getAllSlotsData({ date: dateQuery }, eventId);
       if (!slots.success) return slots;
-      selectedDate = dateQuery;
       const dateData =
         slots.data.dates && slots.data.dates.length > 0
           ? slots.data.dates[0]
           : null;
       slotsData = dateData ? dateData.slots : [];
+
+      if (slotsData.length === 0) {
+        // Queried date is now empty (e.g. after deletion) — fall back to earliest available date
+        const allSlots = getAllSlotsData({}, eventId);
+        if (allSlots.success && allSlots.data.dates && allSlots.data.dates.length > 0) {
+          const sortedDates = allSlots.data.dates.sort(
+            (a, b) => new Date(a.date) - new Date(b.date),
+          );
+          selectedDate = sortedDates[0].date;
+          slotsData = sortedDates[0].slots;
+        } else {
+          selectedDate = dateQuery;
+        }
+      } else {
+        selectedDate = dateQuery;
+      }
     } else {
       // No date — read once, pick the earliest future date from the result
       const allSlots = getAllSlotsData({}, eventId);
