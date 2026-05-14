@@ -18,6 +18,7 @@
     const useQuery = new URLSearchParams(location.search);
     const eventId = useQuery.get("eventId") || "";
     const interviewId = useQuery.get("interviewId") || "";
+    const eventType = useQuery.get("eventType") || "";
 
     const fetchInterviewData = () => {
       setIsLoading(true);
@@ -96,7 +97,7 @@
               workPeriod: data.Work_Period,
               workPosition: data.Work_Position,
               workDescription: data.Work_Description,
-              saleExperience: data.Sales_Experience,
+              saleExperience: data.Sales_Experience,             
             });
           } else {
             Swal.fire({
@@ -385,25 +386,25 @@
                   required
                 />
 
-                {/* จังหวัด */}
+                {/* จังหวัด — disabled for ONLINE (locked) and ONSITE (not applicable) */}
                 <SearchableSelect
                   label="จังหวัดที่สะดวกปฏิบัติงาน"
                   name="preferredProvince"
                   value={formData.preferredProvince || ""}
                   onChange={handleChange}
                   options={isLoadingLocation ? [] : provinceOptions}
-                  disabled={isLoadingLocation}
+                  disabled={isLoadingLocation || eventType === "ONLINE" || eventType === "ONSITE"}
                   required
                 />
 
-                {/* อำเภอ */}
+                {/* อำเภอ — disabled for ONSITE (not applicable); ONLINE can still edit district */}
                 <SearchableSelect
                   label="อำเภอที่สะดวกปฏิบัติงาน"
                   name="preferredDistrict"
                   value={formData.preferredDistrict || ""}
                   onChange={handleChange}
                   options={districtOptions}
-                  disabled={isLoadingLocation || !formData.preferredProvince}
+                  disabled={isLoadingLocation || !formData.preferredProvince || eventType === "ONSITE"}
                   required
                 />
 

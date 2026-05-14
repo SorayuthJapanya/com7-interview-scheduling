@@ -1,4 +1,4 @@
-const WEBSITE_URL = "https://script.google.com/macros/s/AKfycbxgJs3sRLvQH9ArJzhwimyu1fwkYSEDBHw_CxAfiZHA3jDdOqTHSyFZP09OMcPyMqZj2g/exec";
+const WEBSITE_URL = "https://script.google.com/macros/s/AKfycbzyQ-oqBsmM7INKfLWgcHIprks4POySHqDUhkNgR-rXXs8oE49ipl5eYY6kI7i85ZEL/exec";
 const MAIN_EMAIL = "recruitmentcom7.4@gmail.com"
 
 function createCalendarEvent(eventData) {

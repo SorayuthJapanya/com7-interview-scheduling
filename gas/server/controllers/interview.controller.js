@@ -388,7 +388,7 @@ function processInterviewExtras(payload) {
         eventName: event.Event_Name,
         email: interview.Email,
         fullname: interview.Fullname,
-        buName: slot.Bu_Name,
+        buName: interview.Shop,
         location: event.Location,
       };
 
@@ -400,7 +400,7 @@ function processInterviewExtras(payload) {
       const payloadEmail = {
         to: interview.Email,
         eventName: event.Event_Name,
-        buName: slot.Bu_Name,
+        buName: interview.Shop,
         fullname: interview.Fullname,
         date: emailDate,
         timePeriod: interview.Interview_Period,
@@ -459,7 +459,7 @@ function getAllInterviews(query = {}, userRole) {
     const eventData = getRowsFromSheet(eventSheet);
 
     const validEvents = eventData.filter((event) => {
-      if (permissionType && permissionType !== event.Permission_Type) {
+      if (permissionType && permissionType !== event.Event_Type) {
         return false;
       }
       if (isManager && String(event.Status).toUpperCase() !== "TRUE") {
@@ -1011,7 +1011,7 @@ function updateSlotInterview(updateData) {
       };
     }
 
-    const { eventId, interviewId, slotId } = updateData;
+    const { eventId, interviewId, slotId, shop } = updateData;
 
     const mainSheet = SpreadsheetApp.openById(MAIN_SS_ID);
 
@@ -1095,7 +1095,8 @@ function updateSlotInterview(updateData) {
       slotId: 1,
       interviewDate: 3,
       interviewPeriod: 4,
-      buName: 5,
+      shop: 5,
+      buName: 6,
     };
 
     const storeSlotId = interview[index.slotId];
@@ -1129,6 +1130,11 @@ function updateSlotInterview(updateData) {
       interviewPeriod: timePeriod,
       buName: slot.Bu_Name,
     };
+
+    // Only update shop when explicitly provided (ONLINE edit sends it; ONSITE does not)
+    if (typeof shop === "string") {
+      newData.shop = shop;
+    }
 
     let modified = false;
     Object.keys(newData).forEach((key) => {
@@ -1192,9 +1198,9 @@ function updateSlotInterview(updateData) {
     newSlotRange.setValues([newSlotData]);
 
     // payload
-    const email = interview[19];
-    const fullname = interview[6];
-    const calendarId = interview[38];
+    const email = interview[20];
+    const fullname = interview[7];
+    const calendarId = interview[39];
     const emailDate = normalizeDate(new Date(slot.Date)).toLocaleDateString(
       "th-Th",
       {
@@ -1212,7 +1218,7 @@ function updateSlotInterview(updateData) {
       eventName,
       email,
       fullname,
-      buName: slot.Bu_Name,
+      buName: interview.Shop,
       location,
     };
 
@@ -1223,7 +1229,7 @@ function updateSlotInterview(updateData) {
     const sendMailPayload = {
       to: email,
       eventName,
-      buName: slot.Bu_Name,
+      buName: interview.Shop,
       fullname,
       date: emailDate,
       timePeriod,
@@ -1350,22 +1356,22 @@ function updateStatusInterview(updateData) {
       .getValues()[0];
 
     // update status
-    interviewSheet.getRange(actualIndex, 38).setValue(status);
+    interviewSheet.getRange(actualIndex, 39).setValue(status);
 
     // if status is pass
     if (status === INTERVIEW_STATUS[1]) {
       // update result bu
-      interviewSheet.getRange(actualIndex, 43).setValue(result_bu);
+      interviewSheet.getRange(actualIndex, 44).setValue(result_bu);
 
       // update result store id
-      interviewSheet.getRange(actualIndex, 44).setValue(result_store_id);
+      interviewSheet.getRange(actualIndex, 45).setValue(result_store_id);
 
       // update result position
-      interviewSheet.getRange(actualIndex, 45).setValue(result_position);
+      interviewSheet.getRange(actualIndex, 46).setValue(result_position);
     }
 
     // create payload
-    const interviewName = row[6];
+    const interviewName = row[7];
 
     // update logs in transaction sheet
     const transactionSheet = ss.getSheetByName(EVENT_SHEETS.TRANSACTION);
@@ -1453,7 +1459,7 @@ function updateParticipationInterview(updateData) {
     }
 
     // update status
-    interviewSheet.getRange(actualIndex, 42).setValue(status);
+    interviewSheet.getRange(actualIndex, 43).setValue(status);
 
     // update logs in transaction sheet
     const transactionSheet = ss.getSheetByName(EVENT_SHEETS.TRANSACTION);
@@ -1646,7 +1652,7 @@ function deleteInterview(deleteData) {
     if (rowsToChangeStatus.length > 0) {
       rowsToChangeStatus.sort((a, b) => b - a);
       rowsToChangeStatus.forEach((row) => {
-        interviewSheet.getRange(row, 38).setValue(INTERVIEW_STATUS[4]);
+        interviewSheet.getRange(row, 39).setValue(INTERVIEW_STATUS[4]);
       });
     }
 
@@ -1827,6 +1833,7 @@ function addLinktoSheet(data) {
             eventName,
             date: formattedDate,
             type: "CALL_LINK",
+            interviewLink,
           };
 
           sendEmail(payload);

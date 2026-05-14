@@ -120,11 +120,13 @@
 
     const handleClickEditProfile = () => {
       const eventId = eventDetail.Sheet_ID;
+      const eventType = eventDetail.Event_Type;
 
       const params = new URLSearchParams();
 
       if (interviewId) params.append("interviewId", interviewId);
       if (eventId) params.append("eventId", eventId);
+      if (eventType) params.append("eventType", eventType);
 
       history.push({
         pathname: "/interview/edit",
@@ -155,6 +157,8 @@
       if (eventName) params.append("eventName", eventName);
       if (eventLocation) params.append("eventLocation", eventLocation);
       if (eventType) params.append("eventType", eventType);
+      if (Preferred_Province) params.append("preferredProvince", Preferred_Province);
+      if (interview.Shop) params.append("shop", interview.Shop);
 
       history.push({
         pathname: "/events/slots/edit",
@@ -244,7 +248,7 @@
         <div className="p-5 border-b border-base-300 bg-base-200 flex flex-col items-start gap-2">
           <div className="w-full flex flex-col md:flex-row items-start md:items-center md:justify-between gap-4">
             <h3 className="text-xl font-medium">
-              {eventDetail.Event_Name} - {interview.Shop}
+              {eventDetail.Event_Name} - {interview.Shop ? `สาขา ${interview.Shop}` : interview.Bu_Name}
             </h3>
 
             <span

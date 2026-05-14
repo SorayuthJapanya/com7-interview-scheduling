@@ -13,6 +13,9 @@
     const addDays = (dateStr, days) => {
       if (!dateStr) return "";
       const d = new Date(dateStr);
+      if (d.getFullYear() > 2400) {
+        d.setFullYear(d.getFullYear() - 543);
+      }
       d.setDate(d.getDate() + days);
       return d.toISOString().split("T")[0];
     };
@@ -20,6 +23,12 @@
     const formatDate = (dateStr) => {
       const d = new Date(dateStr);
       if (isNaN(d)) return "-";
+      // Server stores dates using Thai Buddhist Era year (CE + 543).
+      // If the year parsed is > 2400 it's a BE year — subtract 543 to get Gregorian
+      // before letting toLocaleDateString("th-TH") add 543 back for display.
+      if (d.getFullYear() > 2400) {
+        d.setFullYear(d.getFullYear() - 543);
+      }
       return d.toLocaleDateString("th-TH", {
         day: "numeric",
         month: "short",

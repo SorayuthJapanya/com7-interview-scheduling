@@ -47,6 +47,7 @@ function testGetAllInterview() {
     candidateId: "",
     eventName: "",
     province: "",
+    permissionType: ""
   };
 
   const response = getAllInterviews(query, userRole);

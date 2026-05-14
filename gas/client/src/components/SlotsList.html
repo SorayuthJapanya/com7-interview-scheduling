@@ -1,6 +1,12 @@
 <script type="text/babel">
   const { useState, useEffect } = React;
   const { useHistory } = ReactRouterDOM;
+  const { createPortal } = ReactDOM;
+
+  const ONLINE_SHOP_OPTIONS = ["True", "Studio7", "BaNaNa"];
+  const PROVINCE_CACHE_KEY = "thai_province_data";
+  const PROVINCE_API_URL =
+    "https://raw.githubusercontent.com/kongvut/thai-province-data/refs/heads/master/api/latest/province.json";
 
   const SlotsList = ({
     slots,
@@ -9,11 +15,204 @@
     interviewId,
     eventName,
     eventJobType,
+    eventType,
     date,
+    originalProvince,
+    originalShop,
     user,
     onClickLogin,
   }) => {
+    const isEditMode = !!slotBookId;
     const history = useHistory();
+
+    const [modalOpen, setModalOpen] = useState(false);
+    const [selectedSlot, setSelectedSlot] = useState(null);
+    const [selectedShop, setSelectedShop] = useState("");
+    const [selectedProvince, setSelectedProvince] = useState("");
+    const [provinceOptions, setProvinceOptions] = useState([]);
+    const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
+    const [expandedSlotKey, setExpandedSlotKey] = useState(null);
+
+    // Fixes BE year double-add bug: "2569-05-15" → toLocaleDateString("th-TH") would give 3112
+    const toThaiDateStr = (dateStr) => {
+      const d = new Date(dateStr);
+      if (d.getFullYear() > 2400) d.setFullYear(d.getFullYear() - 543);
+      return d.toLocaleString("th-TH", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    };
+
+    const fetchProvinces = async () => {
+      const cached = sessionStorage.getItem(PROVINCE_CACHE_KEY);
+      if (cached) {
+        setProvinceOptions(JSON.parse(cached));
+        return;
+      }
+      setIsLoadingProvinces(true);
+      try {
+        const res = await fetch(PROVINCE_API_URL);
+        const data = await res.json();
+        const names = data
+          .map((p) => p.name_th)
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b, "th"));
+        sessionStorage.setItem(PROVINCE_CACHE_KEY, JSON.stringify(names));
+        setProvinceOptions(names);
+      } catch (err) {
+        console.error("Failed to fetch province data:", err);
+      } finally {
+        setIsLoadingProvinces(false);
+      }
+    };
+
+    useEffect(() => {
+      if (eventType === "ONLINE" && provinceOptions.length === 0) {
+        fetchProvinces();
+      }
+    }, [eventType]);
+
+    // ONLINE: open modal | ONSITE: toggle expand
+    const handleTimeSlotClick = (slot) => {
+      if (!user) {
+        onClickLogin();
+        return;
+      }
+      if (eventType === "ONLINE") {
+        setSelectedSlot(slot);
+        setSelectedShop("");
+        setSelectedProvince("");
+        setModalOpen(true);
+      } else {
+        const key = `${slot.startTime}-${slot.endTime}`;
+        setExpandedSlotKey((prev) => (prev === key ? null : key));
+      }
+    };
+
+    // ONLINE modal submit: validate → resolve region → find BU → navigate (create) or update slot (edit)
+    const handleOnlineSubmit = () => {
+      const provinceToUse = isEditMode ? originalProvince : selectedProvince;
+      const shopToUse = isEditMode ? originalShop : selectedShop;
+
+      if (!shopToUse || !provinceToUse) {
+        Swal.fire({
+          icon: "warning",
+          title: "กรุณากรอกข้อมูลให้ครบ",
+          timer: 2000,
+        });
+        return;
+      }
+
+      const region = getRegionByProvince(provinceToUse);
+      const matchingBu = selectedSlot.bu.find((bu) => bu.name === region);
+
+      if (!matchingBu) {
+        Swal.fire({
+          icon: "error",
+          title: "ไม่พบภูมิภาคนี้",
+          text: `ไม่พบข้อมูลสล็อตสำหรับจังหวัด ${provinceToUse}`,
+        });
+        return;
+      }
+
+      setModalOpen(false);
+
+      if (isEditMode) {
+        if (slotBookId === matchingBu.slotId) return;
+
+        Swal.fire({
+          title: "ยืนยันการแก้ไข",
+          text: "คุณต้องการแก้ไขช่วงเวลาใช่หรือไม่?",
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonText: "ยืนยัน",
+          cancelButtonText: "ยกเลิก",
+        }).then((result) => {
+          if (result.isConfirmed) {
+            Swal.fire({
+              title: "กำลังดำเนินการ...",
+              allowOutsideClick: false,
+              didOpen: () => {
+                Swal.showLoading();
+              },
+            });
+
+            google.script.run
+              .withSuccessHandler((res) => {
+                if (res.success === true) {
+                  Swal.fire({
+                    icon: "success",
+                    title: "สำเร็จ",
+                    text: res.message,
+                    timer: 2000,
+                    showConfirmButton: false,
+                  }).then(() => {
+                    history.push("/interview");
+                    window.scrollTo(0, 0);
+                  });
+                } else {
+                  Swal.fire({
+                    icon: "error",
+                    title: "เกิดข้อผิดพลาด",
+                    text: res.message,
+                  });
+                }
+              })
+              .withFailureHandler((err) => {
+                Swal.fire({
+                  icon: "error",
+                  title: "เกิดข้อผิดพลาด",
+                  text: err.message,
+                });
+              })
+              .updateSlotInterview({ eventId, interviewId, slotId: matchingBu.slotId, shop: shopToUse });
+          }
+        });
+        return;
+      }
+
+      const params = new URLSearchParams();
+      if (matchingBu.slotId) params.append("slotId", matchingBu.slotId);
+      if (eventId) params.append("eventId", eventId);
+      if (eventJobType) params.append("eventJobType", eventJobType);
+      if (eventName) params.append("eventName", eventName);
+      params.append("buName", region);
+      params.append("shop", shopToUse);
+      params.append("preferredProvince", provinceToUse);
+      if (date) params.append("date", toThaiDateStr(date));
+      params.append(
+        "time",
+        `${selectedSlot.startTime}-${selectedSlot.endTime}`,
+      );
+
+      history.push({ pathname: "/interview/add", search: params.toString() });
+      window.scrollTo(0, 0);
+    };
+
+    // ONSITE: direct navigation to AddInterviewPage
+    const handleClickAddSlot = (slotId, buName, startTime, endTime) => {
+      if (!user) {
+        onClickLogin();
+        return;
+      }
+
+      const params = new URLSearchParams();
+      if (slotId) params.append("slotId", slotId);
+      if (eventId) params.append("eventId", eventId);
+      if (eventJobType) params.append("eventJobType", eventJobType);
+      if (eventName) params.append("eventName", eventName);
+      if (buName) params.append("buName", buName);
+      if (date) params.append("date", toThaiDateStr(date));
+      if (startTime && endTime)
+        params.append("time", `${startTime}-${endTime}`);
+
+      history.push({
+        pathname: "/interview/add",
+        search: params.toString(),
+      });
+      window.scrollTo(0, 0);
+    };
 
     const handleClickEditSlot = (slotId) => {
       if (!user) {
@@ -81,37 +280,6 @@
       });
     };
 
-    const handleClickAddSlot = (slotId, buName, startTime, endTime) => {
-      if (!user) {
-        onClickLogin();
-        return;
-      }
-
-      const params = new URLSearchParams();
-
-      if (slotId) params.append("slotId", slotId);
-      if (eventId) params.append("eventId", eventId);
-      if (eventJobType) params.append("eventJobType", eventJobType);
-      if (eventName) params.append("eventName", eventName);
-      if (buName) params.append("buName", buName);
-      if (date) {
-        const thaiDateStr = new Date(date).toLocaleString("th-TH", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        });
-        params.append("date", thaiDateStr);
-      }
-      if (startTime && endTime)
-        params.append("time", `${startTime}-${endTime}`);
-
-      history.push({
-        pathname: "/interview/add",
-        search: params.toString(),
-      });
-
-      window.scrollTo(0, 0);
-    };
     return (
       <div className="xl:px-20">
         {slots.length === 0 ? (
@@ -123,108 +291,232 @@
             <p className="text-gray-500 text-left">
               ทั้งหมด: {slots.length} ช่วงเวลา
             </p>
-            {slots.map((slot, index) => (
-              <div
-                key={`${slot.startTime}-${slot.endTime}`}
-                className="bg-base-100 border border-base-300 rounded-2xl shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden"
-              >
-                {/* --- Header Section --- */}
-                <div className="flex items-center justify-center sm:justify-between px-5 py-4 bg-base-200">
-                  {/* Left: Time Info */}
-                  <div className="flex flex-col items-center sm:items-start">
-                    <span className="block text-xs text-gray-500">
-                      ช่วงเวลาสัมภาษณ์
-                    </span>
-                    <span className="text-xl font-medium">
-                      {slot.startTime} - {slot.endTime}
-                    </span>
 
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <span>
-                        {slot.bu.length} ตัวเลือก | เลือกภูมิภาค/สาขาที่ต้องการ
-                      </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {slots.map((slot) => {
+                const slotKey = `${slot.startTime}-${slot.endTime}`;
+                const isExpanded = expandedSlotKey === slotKey;
+
+                return (
+                  <div
+                    key={slotKey}
+                    className="bg-base-100 border border-base-300 rounded-2xl shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden"
+                  >
+                    {/* --- Header: clickable time period --- */}
+                    <div
+                      onClick={() => handleTimeSlotClick(slot)}
+                      className="flex items-center justify-center sm:justify-between px-5 py-4 bg-base-100 cursor-pointer hover:bg-base-200 transition-colors duration-200"
+                    >
+                      {/* Left: Time Info */}
+                      <div className="flex flex-col items-center sm:items-start">
+                        <span className="block text-xs text-gray-500">
+                          ช่วงเวลาสัมภาษณ์
+                        </span>
+                        <span className="text-xl font-medium">
+                          {slot.startTime} - {slot.endTime}
+                        </span>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <span>
+                            {eventType === "ONLINE"
+                              ? "คลิกเพื่อเลือก Shop และจังหวัด"
+                              : "เลือกภูมิภาค/สาขาที่ต้องการ"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Right: CTA (Desktop Only) */}
+                      <div className="hidden sm:flex items-center gap-2 font-medium text-sm p-2 bg-emerald-600 text-white rounded-xl">
+                        <span>
+                          {eventType === "ONLINE"
+                            ? "เลือก Shop / จังหวัด"
+                            : "เลือกภูมิภาค/สาขา"}
+                        </span>
+                        <i
+                          className={`fa-solid ${
+                            eventType === "ONLINE"
+                              ? "fa-arrow-right"
+                              : isExpanded
+                                ? "fa-arrow-up"
+                                : "fa-arrow-down"
+                          }`}
+                        ></i>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Right: CTA (Desktop Only) */}
-                  <div className="hidden sm:flex items-center gap-2 font-medium text-sm p-2 bg-emerald-600 text-white rounded-full">
-                    <span>เลือกภูมิภาค/สาขาที่ต้องการ</span>
-                    <i className="fa-solid fa-arrow-down"></i>
-                  </div>
-                </div>
+                    {/* --- Body: BU grid (ONSITE only, gated by expandedSlotKey) --- */}
+                    {eventType !== "ONLINE" && isExpanded && (
+                      <div className="p-5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {slot.bu.map((bu) => {
+                            const isBooked = slotBookId === bu.slotId;
 
-                {/* --- Body Section: BU Grid --- */}
-                <div className="p-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {slot.bu.map((bu, index) => {
-                      const isBooked = slotBookId === bu.slotId;
-
-                      return (
-                        <button
-                          key={bu.slotId}
-                          // Enable ทุกกรณี (เอา disabled condition ออก)
-                          onClick={() =>
-                            slotBookId
-                              ? handleClickEditSlot(bu.slotId)
-                              : handleClickAddSlot(
-                                  bu.slotId,
-                                  bu.name,
-                                  slot.startTime,
-                                  slot.endTime,
-                                )
-                          }
-                          className={`
-                            group relative flex items-center justify-between p-3 rounded-lg border text-left transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95
-                            ${
-                              isBooked
-                                ? "bg-yellow-50 border-2 border-yellow-400 shadow-md" // Style เมื่อจองแล้ว
-                                : "bg-base-100 border-2 border-base-300 hover:border-emerald-500 hover:bg-base-200" // Style ปกติ (ว่าง/ไม่ว่าง แสดงเหมือนกัน)
-                            }
-                          `}
-                        >
-                          {/* BU Name */}
-                          <div className="flex flex-col">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`font-medium ${
+                            return (
+                              <button
+                                key={bu.slotId}
+                                onClick={() =>
+                                  slotBookId
+                                    ? handleClickEditSlot(bu.slotId)
+                                    : handleClickAddSlot(
+                                        bu.slotId,
+                                        bu.name,
+                                        slot.startTime,
+                                        slot.endTime,
+                                      )
+                                }
+                                className={`
+                                group relative flex items-center justify-between p-3 rounded-lg border text-left text-sm transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95
+                                ${
                                   isBooked
-                                    ? "text-yellow-800"
-                                    : "text-emerald-600"
-                                }`}
+                                    ? "bg-yellow-50 border-2 border-yellow-400 shadow-md"
+                                    : "bg-base-100 border-2 border-base-300 hover:border-emerald-500 hover:bg-base-200"
+                                }
+                              `}
                               >
-                                {bu.name}
-                              </span>
-                            </div>
-                          </div>
+                                {/* BU Name */}
+                                <div className="flex flex-col">
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className={`font-medium ${
+                                        isBooked
+                                          ? "text-yellow-800"
+                                          : "text-emerald-600"
+                                      }`}
+                                    >
+                                      {bu.name}
+                                    </span>
+                                  </div>
+                                </div>
 
-                          {/* Status Indicator */}
-                          {isBooked ? (
-                            <span className="text-sm font-bold text-yellow-700 flex items-center gap-1">
-                              <i className="fas fa-check-circle"></i> จองแล้ว
-                            </span>
-                          ) : (
-                            // เอาส่วนแสดงจำนวนที่นั่งออก และแทนที่ด้วย Icon หรือปล่อยว่างเพื่อให้ดู Clean
-                            <span className="text-gray-400 group-hover:text-emerald-500 transition-colors">
-                              <i className="fa-solid fa-chevron-right"></i>
-                            </span>
-                          )}
+                                {/* Status Indicator */}
+                                {isBooked ? (
+                                  <span className="text-sm font-bold text-yellow-700 flex items-center gap-1">
+                                    <i className="fas fa-check-circle"></i>{" "}
+                                    จองแล้ว
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400 group-hover:text-emerald-500 transition-colors">
+                                    <i className="fa-solid fa-chevron-right"></i>
+                                  </span>
+                                )}
 
-                          {/* Hover Effect Layer */}
-                          <div
-                            className={`absolute inset-0 rounded-lg ${
-                              isBooked
-                                ? "bg-yellow-300 opacity-0"
-                                : "bg-emerald-500 opacity-0 group-hover:opacity-5"
-                            } transition-opacity duration-200 pointer-events-none`}
-                          ></div>
-                        </button>
-                      );
-                    })}
+                                {/* Hover Effect Layer */}
+                                <div
+                                  className={`absolute inset-0 rounded-lg ${
+                                    isBooked
+                                      ? "bg-yellow-300 opacity-0"
+                                      : "bg-emerald-500 opacity-0 group-hover:opacity-5"
+                                  } transition-opacity duration-200 pointer-events-none`}
+                                ></div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              </div>
-            ))}
+                );
+              })}
+            </div>
           </div>
+        )}
+
+        {/* ONLINE Modal — portaled to document.body to cover full viewport */}
+        {eventType === "ONLINE" && modalOpen && createPortal(
+          <dialog className="modal modal-open">
+            <div className="modal-box rounded-md space-y-4">
+              <h3 className="text-lg font-semibold">
+                {isEditMode ? "ยืนยัน Shop" : "เลือก Shop และจังหวัด"}
+              </h3>
+
+              {/* Shop selector — locked in edit mode */}
+              {isEditMode ? (
+                <div className="form-control w-full">
+                  <label className="text-sm font-medium text-gray-500 mb-1.5 ml-1 block">
+                    Shop ที่ต้องการ
+                  </label>
+                  <input
+                    type="text"
+                    className="input input-bordered rounded-md w-full bg-base-200 text-gray-500 cursor-not-allowed"
+                    value={originalShop || "-"}
+                    readOnly
+                    disabled
+                  />
+                </div>
+              ) : (
+                <div className="form-control w-full">
+                  <label className="text-sm font-medium text-gray-500 mb-1.5 ml-1 block">
+                    Shop ที่ต้องการ
+                  </label>
+                  <select
+                    className="select select-bordered rounded-md w-full"
+                    value={selectedShop}
+                    onChange={(e) => setSelectedShop(e.target.value)}
+                  >
+                    <option value="" disabled>
+                      เลือก Shop
+                    </option>
+                    {ONLINE_SHOP_OPTIONS.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Province selector — locked in edit mode */}
+              {isEditMode ? (
+                <div className="form-control w-full">
+                  <label className="text-sm font-medium text-gray-500 mb-1.5 ml-1 block">
+                    จังหวัดที่ต้องการ
+                  </label>
+                  <input
+                    type="text"
+                    className="input input-bordered rounded-md w-full bg-base-200 text-gray-500 cursor-not-allowed"
+                    value={originalProvince || "-"}
+                    readOnly
+                    disabled
+                  />
+                </div>
+              ) : (
+                <SearchableSelect
+                  label="จังหวัดที่ต้องการ"
+                  name="preferredProvince"
+                  value={selectedProvince}
+                  onChange={(e) => setSelectedProvince(e.target.value)}
+                  options={provinceOptions}
+                  disabled={isLoadingProvinces}
+                  placeholder={
+                    isLoadingProvinces ? "กำลังโหลด..." : "พิมพ์เพื่อค้นหาจังหวัด"
+                  }
+                />
+              )}
+
+              {/* Actions */}
+              <div className="modal-action">
+                <button
+                  type="button"
+                  className="btn btn-ghost rounded-md"
+                  onClick={() => setModalOpen(false)}
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  className="btn bg-emerald-600 rounded-md text-white hover:bg-emerald-700 transition-colors duration-200"
+                  onClick={handleOnlineSubmit}
+                >
+                  ยืนยัน
+                </button>
+              </div>
+            </div>
+
+            {/* Backdrop — click to close */}
+            <form method="dialog" className="modal-backdrop">
+              <button onClick={() => setModalOpen(false)}>close</button>
+            </form>
+          </dialog>,
+          document.body
         )}
       </div>
     );

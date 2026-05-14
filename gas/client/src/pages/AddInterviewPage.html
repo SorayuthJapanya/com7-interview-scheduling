@@ -193,7 +193,7 @@
       const result = await Swal.fire({
         icon: "question",
         title: "ยืนยันความถูกต้อง",
-        text: `คุณต้องการลงทะเบียนสัมภาษณ์สำหรับ ${eventName} (${shop}) วันที่ ${date} ช่วงเวลา ${timePeriod} น. ใช่หรือไม่`,
+        text: `คุณต้องการลงทะเบียนสัมภาษณ์สำหรับ ${eventName} (${shop ? shop : buName}) วันที่ ${date} ช่วงเวลา ${timePeriod} น. ใช่หรือไม่`,
         showCancelButton: true,
         confirmButtonText: "ใช่ ลงทะเบียนเลย",
         cancelButtonText: "ยกเลิก",
@@ -205,7 +205,7 @@
 
       Swal.fire({
         title: "กำลังบันทึกข้อมูล...",
-        text: `กำลังลงทะเบียนสัมภาษณ์สำหรับ ${eventName} (${shop}) วันที่ ${date} ช่วงเวลา ${timePeriod} น.`,
+        text: `กำลังลงทะเบียนสัมภาษณ์สำหรับ ${eventName} (${shop ? shop : buName}) วันที่ ${date} ช่วงเวลา ${timePeriod} น.`,
         allowOutsideClick: false,
         didOpen: () => {
           Swal.showLoading();
@@ -336,7 +336,7 @@
                 ลงทะเบียนผู้สมัครสัมภาษณ์
               </h1>
               <h3 className="text-base md:text-lg">
-                {eventName} ({shop}) วันที่ {date} ช่วงเวลา {timePeriod} น.
+                {eventName} ({shop ? shop : buName}) วันที่ {date} ช่วงเวลา {timePeriod} น.
               </h3>
               <p className="text-xs sm:text-sm text-gray-500">
                 * หลังจากบันทึกข้อมูลเรียบร้อย
@@ -428,6 +428,7 @@
                   onChange={(val) =>
                     handleDateChange("availableStartDate", val)
                   }
+                  minDate={new Date()} // เลือกได้ตั้งแต่วันถัดไปเป็นต้นไป
                   icon={<i className="fa-regular fa-calendar"></i>}
                   placeholder="เลือกวันที่"
                   options={{ dateFormat: "Y-m-d" }}

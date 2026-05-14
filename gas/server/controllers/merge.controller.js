@@ -437,6 +437,14 @@ function getAllDataForDashBoard(query = {}) {
     result.kpi.totalEvents = eventData.length;
     const trendMap = {};
 
+    const VALID_STATUSES = new Set([
+      "ผ่าน",
+      "ไม่ผ่าน",
+      "รอการพิจารณา",
+      "เก็บไว้พิจารณา",
+      "ไม่ผ่านการพิจารณา",
+    ]);
+
     // Use SpreadsheetApp (internal GAS service) instead of UrlFetchApp to avoid
     // REST API bandwidth quota. Only read the 3 columns needed from each sheet:
     //   Slots col 6   → Capacity
@@ -465,9 +473,23 @@ function getAllDataForDashBoard(query = {}) {
           const lastIntRow = intSheet.getLastRow();
           if (lastIntRow > 1) {
             const rowCount = lastIntRow - 1;
-            const buCol = intSheet.getRange(2, 6, rowCount, 1).getValues();
-            const statusCol = intSheet.getRange(2, 38, rowCount, 1).getValues();
-            const tsCol = intSheet.getRange(2, 40, rowCount, 1).getValues();
+            const lastCol = intSheet.getLastColumn();
+
+            // Detect column positions from header row — works for both old sheets
+            // (no Shop column) and new sheets (Shop added, shifting Bu_Name right by 1).
+            const intHeaders = intSheet.getRange(1, 1, 1, lastCol).getValues()[0];
+            const buColNum     = intHeaders.indexOf("Bu_Name")   + 1;
+            const statusColNum = intHeaders.indexOf("Status")    + 1;
+            const tsColNum     = intHeaders.indexOf("TimeStamp") + 1;
+
+            if (!buColNum || !statusColNum || !tsColNum) {
+              console.warn("Missing expected headers in interviews sheet for event: " + event.Event_Name);
+              return;
+            }
+
+            const buCol     = intSheet.getRange(2, buColNum,     rowCount, 1).getValues();
+            const statusCol = intSheet.getRange(2, statusColNum, rowCount, 1).getValues();
+            const tsCol     = intSheet.getRange(2, tsColNum,     rowCount, 1).getValues();
 
             for (let i = 0; i < rowCount; i++) {
               const buName = String(buCol[i][0] || "");
@@ -479,6 +501,7 @@ function getAllDataForDashBoard(query = {}) {
                   : String(tsRaw || "");
 
               if (!status && !timeStampStr) continue;
+              if (!VALID_STATUSES.has(status)) continue;
 
               const cleanTimestamp = timeStampStr.replace(/\s+/g, " ").trim();
               const parsedDate = parseThaiDateTime(cleanTimestamp);
@@ -495,9 +518,8 @@ function getAllDataForDashBoard(query = {}) {
 
               result.kpi.totalCandidates++;
 
-              const statusLabel = status || "Unknown";
-              result.charts.statusDistribution[statusLabel] =
-                (result.charts.statusDistribution[statusLabel] || 0) + 1;
+              result.charts.statusDistribution[status] =
+                (result.charts.statusDistribution[status] || 0) + 1;
 
               if (status === "ผ่าน") {
                 result.kpi.totalOffers++;

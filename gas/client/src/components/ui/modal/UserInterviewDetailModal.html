@@ -109,6 +109,7 @@
     // functions
     const handleClickEditProfile = () => {
       const eventId = eventDetail.Sheet_ID;
+      const eventType = eventDetail.Event_Type;
 
       const interviewId = interview.Interview_Id;
       const dateQuery = formatQueryData(Interview_Date);
@@ -117,6 +118,7 @@
 
       if (interviewId) params.append("interviewId", interviewId);
       if (eventId) params.append("eventId", eventId);
+      if (eventType) params.append("eventType", eventType);
       if (dateQuery) params.append("dateQuery", dateQuery);
 
       onClose();
@@ -144,6 +146,8 @@
       if (eventName) params.append("eventName", eventName);
       if (eventLocation) params.append("eventLocation", eventLocation);
       if (eventType) params.append("eventType", eventType);
+      if (Preferred_Province) params.append("preferredProvince", Preferred_Province);
+      if (interview.Shop) params.append("shop", interview.Shop);
 
       onClose();
 
@@ -243,7 +247,7 @@
             <div className="flex-1 pr-8">
               <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                 <h3 className="text-xl font-bold text-gray-800">
-                  {eventDetail.Event_Name} - {interview.Bu_Name}
+                  {eventDetail.Event_Name} - {interview.Shop ? `สาขา ${interview.Shop}` : interview.Bu_Name}
                 </h3>
                 <span
                   className={`px-3 py-0.5 rounded-full text-xs font-semibold border ${getStatusStyle(

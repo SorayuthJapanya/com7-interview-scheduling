@@ -17,6 +17,8 @@
     const eventLocation = query.get("eventLocation") || "";
     const eventType = query.get("eventType") || "";
     const dateParams = query.get("dateQuery") || "";
+    const originalProvince = query.get("preferredProvince") || "";
+    const originalShop = query.get("shop") || "";
 
     const [eventData, setEventData] = useState({});
     const [slotsData, setSlotsData] = useState([]);
@@ -97,6 +99,10 @@
                 slotBookId={slotId}
                 interviewId={interviewId}
                 eventName={eventName}
+                eventType={eventType}
+                date={date}
+                originalProvince={originalProvince}
+                originalShop={originalShop}
                 user={user}
                 onClickLogin={onClickLogin}
               />

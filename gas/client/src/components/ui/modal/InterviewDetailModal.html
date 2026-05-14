@@ -533,7 +533,10 @@
             <div className="flex-1 pr-8">
               <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                 <h3 className="text-xl font-bold text-gray-800">
-                  {eventDetail.Event_Name} - {interview.Bu_Name}
+                  {eventDetail.Event_Name} -{" "}
+                  {interview.Shop
+                    ? `สาขา ${interview.Shop}`
+                    : interview.Bu_Name}
                 </h3>
                 <span
                   className={`px-3 py-0.5 rounded-full text-xs font-semibold border ${getStatusStyle(
@@ -542,6 +545,16 @@
                 >
                   {Status}
                 </span>
+                {interview.Status === "ผ่าน" &&
+                  interview.Result_Bu &&
+                  interview.Result_Store_Id &&
+                  interview.Result_Position && (
+                    <p>
+                      Bu: {interview.Result_Bu} ร้าน:{" "}
+                      {interview.Result_Store_Id} ตำแหน่ง:{" "}
+                      {interview.Result_Position}
+                    </p>
+                  )}
               </div>
 
               <div className="flex flex-wrap gap-2 mt-2 text-sm text-gray-600">
